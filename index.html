@@ -2,178 +2,218 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>춘식 점프 물리 로직</title>
-    <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>춘핑점핑 (규격 발판 패치)</title>
     <style>
-        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        #game-stage { 
-            position: relative; 
-            width: 393px; 
-            height: 852px; 
-            background: #fff; 
-            overflow: hidden; 
-        }
-        #canvas-container {
-            position: absolute;
-            width: 86px;
-            height: 138px;
-            bottom: 100px; 
-            left: 50%;
-            margin-left: -43px; 
-            z-index: 10;
-        }
-        canvas { width: 100%; height: 100%; }
-        .platform {
-            position: absolute;
-            width: 80px;
-            height: 15px;
-            background: #5c3e34;
-            border-radius: 5px;
-        }
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { margin: 0; padding: 0; background-color: #333; font-family: 'Pretendard', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; touch-action: none; user-select: none; }
+        #game-container { position: relative; width: 100%; max-width: 480px; height: 100%; max-height: 850px; background: linear-gradient(to bottom, #89CFF0 0%, #E0F7FA 100%); box-shadow: 0 0 20px rgba(0,0,0,0.5); overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.7); color: white; text-align: center; z-index: 20; }
+        .hidden { display: none !important; }
+        h1 { font-size: 32px; color: #FFEF6B; text-shadow: 2px 2px 0 #333; margin-bottom: 10px; }
+        .btn { padding: 15px 40px; font-size: 20px; font-weight: bold; color: #333; background-color: #FEE500; border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 5px 0 #cdae04; margin-top: 20px; }
+        #score-board { position: absolute; top: 20px; left: 20px; font-size: 20px; font-weight: bold; color: #333; background: rgba(255, 255, 255, 0.9); padding: 8px 16px; border-radius: 20px; z-index: 5; }
+        .controls-layer { position: absolute; bottom: 30px; left: 0; width: 100%; height: 100px; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; pointer-events: none; z-index: 15; }
+        .control-btn { width: 80px; height: 80px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; border: 4px solid white; pointer-events: auto; display: flex; justify-content: center; align-items: center; font-size: 40px; color: #333; cursor: pointer; }
+        .control-btn.pressed { background: rgba(254, 229, 0, 0.8); }
+        .result-card { background: white; color: #333; padding: 30px; border-radius: 20px; width: 80%; }
+        .final-rate { font-size: 48px; font-weight: bold; color: #D1180B; margin: 10px 0; }
     </style>
 </head>
 <body>
 
-<div id="game-stage">
-    <div id="canvas-container">
-        <canvas id="canvas"></canvas>
+<div id="game-container">
+    <div id="score-board">금리: <span id="rate-display">2.0</span>%</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="controls-layer">
+        <div class="control-btn" id="btn-left">◀</div>
+        <div class="control-btn" id="btn-right">▶</div>
+    </div>
+
+    <div id="start-screen" class="overlay">
+        <h1>춘핑점핑</h1>
+        <p>발판 사이즈 업데이트 완료!</p>
+        <button class="btn" onclick="startGame()">게임 시작</button>
+    </div>
+
+    <div id="game-over-screen" class="overlay hidden">
+        <div class="result-card">
+            <h3>적금 만기!</h3>
+            <p>최종 금리</p>
+            <div class="final-rate"><span id="final-rate">0.0</span>%</div>
+        </div>
+        <button class="btn" onclick="resetGame()">다시 하기</button>
     </div>
 </div>
 
 <script>
-// --- 물리 파라미터 (속도 10 -> 9 반영) ---
-const PHYSICS = {
-    gravity: 0.81,      // 0.9 * 0.9 (가속도 감속)
-    jumpPower: -18.9,   // -21 * 0.9 (상승 속도 감속)
-    moveSpeed: 7,
-    stageWidth: 393,
-    stageHeight: 852,
-    motionHold: 12      // 0.2초 유지
-};
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('rate-display');
+    const finalScoreEl = document.getElementById('final-rate');
+    const startScreen = document.getElementById('start-screen');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
 
-let currentY = 0;       
-let velocityY = 0;
-let posX = 0;           
-let riveInstance;
-let keys = {};          
-let currentScale = 1;   
-let platforms = [];
-let motionTimer = 0;
-let lastLoadedFile = "";
+    const imgJump = new Image(); imgJump.src = 'https://raw.githubusercontent.com/kakao-con/con-pogo/main/chun_pogo1.png'; 
+    const imgLand = new Image(); imgLand.src = 'https://raw.githubusercontent.com/kakao-con/con-pogo/main/chun_pogo2.png'; 
 
-function loadRive(fileName) {
-    if (lastLoadedFile === fileName) return;
-    lastLoadedFile = fileName;
-    if (riveInstance) riveInstance.cleanup();
-    riveInstance = new rive.Rive({
-        src: fileName,
-        canvas: document.getElementById('canvas'),
-        autoplay: true,
-        stateMachines: 'State Machine 1',
-        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
-    });
-}
+    // 발판 규격 데이터
+    const PLATFORM_WIDTHS = [139, 99, 59];
+    const PLATFORM_HEIGHT = 24;
 
-function initPlatforms() {
-    platforms = [];
-    for (let i = 0; i < 8; i++) {
-        platforms.push({ x: Math.random() * (393 - 80), y: i * 110 + 50 });
+    let animationId, isGameOver = false, score = 2.0;
+    let platforms = [], items = [], particles = [], clouds = [];
+
+    const GRAVITY = 0.45;
+    const JUMP_STRENGTH = -13; 
+    const PLATFORM_GAP = 95;
+    const MOVE_SPEED = 6;
+    const FIXED_WIDTH = 80; 
+
+    function resize() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
     }
-    platforms.push({ x: 393/2 - 40, y: 752 }); 
-}
+    window.addEventListener('resize', resize);
+    resize();
 
-loadRive('kongsik_ingame_air.riv');
-initPlatforms();
+    const player = {
+        x: canvas.width / 2, y: canvas.height - 150,
+        width: FIXED_WIDTH, height: FIXED_WIDTH * 1.5,
+        vx: 0, vy: 0, direction: 1, rotation: 0,
+        landingTimer: 0
+    };
 
-function update() {
-    // 1. 이동
-    if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
-    if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    const limit = (PHYSICS.stageWidth / 2) - 43;
-    if (posX < -limit) posX = -limit;
-    if (posX > limit) posX = limit;
+    const keys = { right: false, left: false };
+    window.addEventListener('keydown', e => {
+        if(e.code === 'ArrowRight') { keys.right = true; btnRight.classList.add('pressed'); }
+        if(e.code === 'ArrowLeft') { keys.left = true; btnLeft.classList.add('pressed'); }
+    });
+    window.addEventListener('keyup', e => {
+        if(e.code === 'ArrowRight') { keys.right = false; btnRight.classList.remove('pressed'); }
+        if(e.code === 'ArrowLeft') { keys.left = false; btnLeft.classList.remove('pressed'); }
+    });
 
-    // 2. 물리 엔진
-    velocityY += PHYSICS.gravity;
-    currentY += velocityY;
+    function addTouchEvents(btn, keyName) {
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; btn.classList.add('pressed'); }, { passive: false });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; btn.classList.remove('pressed'); }, { passive: false });
+    }
+    addTouchEvents(btnLeft, 'left');
+    addTouchEvents(btnRight, 'right');
 
-    // 3. 모션 상태 관리 (우선순위: 발판 접촉 시 land -> 이후 air 유지)
-    if (motionTimer > 0) {
-        motionTimer--;
-        // 밟은 직후가 아니면 air 모션 유지
-        if (motionTimer < PHYSICS.motionHold - 1) {
-            loadRive('kongsik_ingame_air.riv');
+    class Platform {
+        constructor(x, y, width) { 
+            this.x = x; 
+            this.y = y; 
+            this.width = width; 
+            this.height = PLATFORM_HEIGHT; 
+            this.broken = false; 
         }
-    } else if (velocityY > 2) {
-        loadRive('kongsik_ingame_land.riv');
+        draw() {
+            if (this.broken) return;
+            // 그림자
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fillRect(this.x + 4, this.y + 4, this.width, this.height);
+            // 발판 본체 (나무 느낌)
+            ctx.fillStyle = '#8D6E63';
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            // 윗면 (잔디)
+            ctx.fillStyle = '#9CCC65';
+            ctx.fillRect(this.x, this.y, this.width, 8);
+            // 테두리
+            ctx.strokeStyle = '#5D4037';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.x, this.y, this.width, this.height);
+        }
     }
 
-    // 4. 발판 충돌 판정 및 land 모션 즉시 출력
-    const charFootY = 752 + currentY; 
-    const charLeft = (393 / 2) + posX - 25;
-
-    if (velocityY > 0) { 
-        platforms.forEach(p => {
-            if (charLeft + 50 > p.x && charLeft < p.x + 80 &&
-                charFootY >= p.y && charFootY <= p.y + 15) {
-                
-                // [핵심] 닿자마자 무조건 land 모션 먼저 출력
-                loadRive('kongsik_ingame_land.riv');
-                
-                velocityY = PHYSICS.jumpPower; 
-                currentY = p.y - 752; 
-                motionTimer = PHYSICS.motionHold; // 타이머 시작 (이후에 air로 전환됨)
-            }
-        });
+    function generatePlatform(y) {
+        // 규격 사이즈 중 랜덤 선택
+        const randomWidth = PLATFORM_WIDTHS[Math.floor(Math.random() * PLATFORM_WIDTHS.length)];
+        const x = Math.random() * (canvas.width - randomWidth);
+        platforms.push(new Platform(x, y, randomWidth));
+        if (Math.random() < 0.3) { items.push({ x: x + randomWidth/2, y: y - 40, size: 18, value: 0.1, collected: false }); }
     }
 
-    // 5. 무한 스크롤
-    if (currentY < -250) {
-        let diff = -250 - currentY;
-        currentY = -250;
-        platforms.forEach(p => {
-            p.y += diff;
-            if (p.y > 852) {
-                p.y = 0;
-                p.x = Math.random() * (393 - 80);
-            }
-        });
+    function init() {
+        score = 2.0;
+        player.x = canvas.width / 2; player.y = canvas.height - 200; player.vy = -10;
+        platforms = []; items = [];
+        // 시작 발판은 넉넉하게 139 사이즈
+        platforms.push(new Platform(canvas.width / 2 - 70, canvas.height - 50, 139)); 
+        for (let i = 0; i < 7; i++) { generatePlatform(canvas.height - 150 - i * PLATFORM_GAP); }
+        scoreEl.innerText = score.toFixed(1);
     }
 
-    // 6. 추락 시 리셋
-    if (charFootY > 900) {
-        currentY = 0;
-        velocityY = PHYSICS.jumpPower; 
-        initPlatforms();
-        loadRive('kongsik_ingame_air.riv');
+    function update() {
+        if (isGameOver) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (keys.left) { player.vx = -MOVE_SPEED; player.direction = -1; }
+        else if (keys.right) { player.vx = MOVE_SPEED; player.direction = 1; }
+        else { player.vx *= 0.8; }
+
+        player.x += player.vx;
+        if (player.x < 0) player.x = canvas.width;
+        if (player.x > canvas.width) player.x = 0;
+
+        if (player.landingTimer > 0) {
+            player.landingTimer--;
+            if (player.landingTimer === 0) player.vy = JUMP_STRENGTH;
+        } else {
+            player.vy += GRAVITY;
+            player.y += player.vy;
+        }
+
+        // 화면 스크롤
+        if (player.y < canvas.height / 2.5 && player.vy < 0) {
+            let dy = -player.vy;
+            player.y += dy;
+            platforms.forEach(p => p.y += dy);
+            items.forEach(i => i.y += dy);
+            const highest = platforms[platforms.length - 1];
+            if (highest.y > PLATFORM_GAP) { generatePlatform(highest.y - PLATFORM_GAP); }
+        }
+
+        // 충돌 체크
+        let feetY = player.y + 40; 
+        if (player.landingTimer === 0 && player.vy > 0) {
+            platforms.forEach(p => {
+                if (!p.broken && player.x > p.x - 20 && player.x < p.x + p.width + 20 && feetY >= p.y && feetY <= p.y + 20) {
+                    player.landingTimer = 8;
+                    player.y = p.y - 45;
+                    player.vy = 0;
+                    if (platforms.indexOf(p) !== 0) p.broken = true;
+                }
+            });
+        }
+
+        platforms = platforms.filter(p => p.y < canvas.height);
+        platforms.forEach(p => p.draw());
+
+        // 캐릭터 그리기 (이미지 로드 전엔 사각형)
+        ctx.save();
+        ctx.translate(player.x, player.y);
+        ctx.scale(-player.direction, 1);
+        const curImg = player.landingTimer > 0 ? imgLand : imgJump;
+        if(curImg.complete) {
+            ctx.drawImage(curImg, -40, -40, 80, 80);
+        } else {
+            ctx.fillStyle = '#FEE500'; ctx.fillRect(-20, -20, 40, 40);
+        }
+        ctx.restore();
+
+        if (player.y > canvas.height + 100) endGame();
+        else animationId = requestAnimationFrame(update);
     }
 
-    // 7. 결과 출력
-    document.getElementById('canvas-container').style.transform = 
-        `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
-
-    renderPlatforms();
-    requestAnimationFrame(update);
-}
-
-function renderPlatforms() {
-    const stage = document.getElementById('game-stage');
-    const existing = document.querySelectorAll('.platform');
-    existing.forEach(el => el.remove());
-    platforms.forEach(p => {
-        const div = document.createElement('div');
-        div.className = 'platform';
-        div.style.left = p.x + 'px';
-        div.style.top = p.y + 'px';
-        stage.appendChild(div);
-    });
-}
-
-window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-update();
+    function startGame() { startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); isGameOver = false; init(); update(); }
+    function endGame() { isGameOver = true; cancelAnimationFrame(animationId); finalScoreEl.innerText = score.toFixed(1); gameOverScreen.classList.remove('hidden'); }
+    function resetGame() { startGame(); }
 </script>
-
 </body>
 </html>
