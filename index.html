@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 넉백 및 파티클 밸런스 패치</title>
+    <title>콩콩춘식 - 빌런 추락 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -85,7 +85,9 @@ function createPlatformData(yPos) {
     const playTime = (Date.now() - startTime) / 1000;
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
-    let canHaveMouse = (width === 138) && !isBreakable && (rand < 0.2); 
+    
+    // ★ 나무 발판(!isBreakable 조건 제거)에도 쥐돌이 출연 가능
+    let canHaveMouse = (width === 138) && (rand < 0.2); 
 
     return {
         x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
@@ -94,21 +96,18 @@ function createPlatformData(yPos) {
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
         mouseWaitTimer: 0,
+        mouseYOffset: -52, // 쥐돌이 Y축 오프셋
+        mouseVY: 0, // 쥐돌이 추락 속도
         type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false, isTouched: false
     };
 }
 
-// 입자 크기와 색상을 수정한 파편 생성 함수
 function spawnBreakParticles(x, y, width) {
     for (let i = 0; i < 15; i++) {
         particles.push({
-            x: x + Math.random() * width,
-            y: y,
-            vx: (Math.random() - 0.5) * 8,
-            vy: (Math.random() - 1) * 6,
-            life: 1.0,
-            size: Math.random() * 3 + 2, // 입자 크기 축소 (2~5px)
-            color: '#BCAAA4' // 연한 나무색으로 변경
+            x: x + Math.random() * width, y: y,
+            vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 1) * 6,
+            life: 1.0, size: Math.random() * 3 + 2, color: '#BCAAA4'
         });
     }
 }
@@ -142,52 +141,53 @@ function update() {
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
 
     platforms.forEach(p => {
-        if (p.isBroken) return;
-        if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
-        
         if (p.hasMouse) {
-            if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
-            else {
-                p.mouseX += p.mouseDir * p.mouseSpeed;
-                if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) {
-                    p.mouseDir *= -1;
-                    p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); 
-                } else if (Math.random() < 0.005) {
-                    p.mouseWaitTimer = 20 + Math.floor(Math.random() * 40); 
+            if (!p.isBroken) {
+                // 발판이 멀쩡할 때: 정상 이동 AI
+                if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
+                else {
+                    p.mouseX += p.mouseDir * p.mouseSpeed;
+                    if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) {
+                        p.mouseDir *= -1;
+                        p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); 
+                    } else if (Math.random() < 0.005) {
+                        p.mouseWaitTimer = 20 + Math.floor(Math.random() * 40); 
+                    }
                 }
-            }
-            let mx = p.x + p.mouseX, my = p.y - 35;
-            // ★ 넉백 수치 조정: 수직 -12, 수평 50
-            if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
-                velocityY = -12; // -15에서 -12로 조정
-                posX += (posX > (mx - p.x) ? 50 : -50); // 60에서 50으로 조정
+                // 충돌 판정
+                let mx = p.x + p.mouseX, my = p.y - 35;
+                if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
+                    velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
+                }
+            } else {
+                // 발판이 부서졌을 때: 쥐돌이 추락 로직
+                p.mouseVY += 0.6; // 추락 중력 적용
+                p.mouseYOffset += p.mouseVY; // 위치 업데이트
             }
         }
 
-        if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
-            loadRive('kongsik_ingame_land.riv'); 
-            velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
-            motionTimer = PHYSICS.motionHold; 
-            p.isTouched = true;
-            if (p.isBreakable) { 
-                p.durability--; 
-                if (p.durability <= 0) {
-                    p.isBroken = true;
-                    spawnBreakParticles(p.x, p.y, p.w); 
+        if (!p.isBroken) {
+            if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
+            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
+                loadRive('kongsik_ingame_land.riv'); 
+                velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
+                motionTimer = PHYSICS.motionHold; 
+                p.isTouched = true;
+                if (p.isBreakable) { 
+                    p.durability--; 
+                    if (p.durability <= 0) {
+                        p.isBroken = true;
+                        spawnBreakParticles(p.x, p.y, p.w); 
+                    }
                 }
             }
         }
     });
 
-    particles.forEach((part) => {
-        part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02;
-    });
+    particles.forEach((part) => { part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02; });
     particles = particles.filter(part => part.life > 0);
 
-    if (motionTimer > 0) {
-        motionTimer--;
-        if (motionTimer === 1) loadRive('kongsik_ingame_air.riv');
-    }
+    if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
 
     if (currentY < -250) {
         let diff = -250 - currentY; currentY = -250; score += diff; 
@@ -215,17 +215,19 @@ function update() {
     });
 
     platforms.forEach(p => {
-        if (p.isBroken) return;
-        const d = document.createElement('div');
-        d.className = 'platform'; 
-        let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
-        d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
-        stage.appendChild(d);
+        if (!p.isBroken) {
+            const d = document.createElement('div');
+            d.className = 'platform'; 
+            let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
+            d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
+            stage.appendChild(d);
+        }
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            const mouseImg = p.mouseWaitTimer > 0 ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
-            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 52}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
+            // 추락 시에는 mouse_walk 애니메이션 고정
+            const mouseImg = (p.mouseWaitTimer > 0 && !p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
+            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
         }
     });
