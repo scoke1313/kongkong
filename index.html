@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 네비게이션 레이아웃 최종 패치</title>
+    <title>콩콩춘식 - 네비게이션 상단 보정 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,10 +13,10 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 네비게이션: 상단 마진 없이 최상단에 딱 붙임 (이미지 비율 유지) --- */
+        /* --- 네비게이션: 음수 마진으로 상단 보정 --- */
         #nav-bar {
             position: absolute; 
-            top: 0; 
+            top: -25px; /* 지시하신 대로 -25px 위로 올림 */
             left: 0; 
             width: 393px; 
             z-index: 9999; 
@@ -26,13 +26,13 @@
         
         #nav-bar img {
             width: 100%;
-            height: auto; 
+            height: auto;
             display: block;
         }
 
-        /* UI 위치 조정: 네비게이션 이미지(약 60px) 아래로 배치하여 겹침 방지 */
-        #score-board { position: absolute; top: 75px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
-        #rate-board { position: absolute; top: 75px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
+        /* UI 위치: 네비게이션 아래쪽 적절한 위치에 고정 */
+        #score-board { position: absolute; top: 45px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
+        #rate-board { position: absolute; top: 45px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
         #canvas-container {
             position: absolute; width: 86px !important; height: 138px !important;
@@ -134,7 +134,7 @@ function createPlatformData(yPos) {
 }
 
 function initPlatforms() {
-    document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item, .pickup-effect').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .mouse-enemy, .game-item, .pickup-effect').forEach(el => el.remove());
     score = 0; cloverRate = 0; isSuperJumping = false;
     scoreEl.innerText = "0m"; rateEl.innerText = "Rate: +0.00%";
     bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
@@ -186,12 +186,6 @@ function update() {
             if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; } }
         } else if (p.hasMouse) { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
     });
-    if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
-    if (currentY < -250) {
-        let diff = -250 - currentY; currentY = -250; score += diff; scoreEl.innerText = Math.floor(score * 0.01) + "m";
-        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (50 + Math.random() * 160))); p.isBroken = false; } });
-    }
     if (charFootY > 1050) initPlatforms();
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     const stage = document.getElementById('game-stage');
