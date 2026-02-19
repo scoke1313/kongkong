@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 점프 가능 범위 패치</title>
+    <title>콩콩춘식 - 다차원 이동 발판 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -82,19 +82,32 @@ function createPlatformData(yPos) {
     const sizeIdx = Math.floor(Math.random() * SIZES.length);
     const width = SIZES[sizeIdx];
     const rand = Math.random();
-    const playTime = (Date.now() - startTime) / 1000;
-    let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
+    let distM = Math.floor(score * 0.01);
+
+    // ★ 거리별 나무 발판 비율 (100m~500m: 2%->10%)
+    let woodProb = distM < 100 ? 0.02 : Math.min(0.1, 0.02 + (0.08 * ((distM - 100) / 400)));
+    let isBreakable = rand < woodProb;
     const typeKey = isBreakable ? 'wood' : 'block';
     let canHaveMouse = (width === 138) && (rand < 0.2); 
 
+    // ★ 거리별 이동 발판 비율 (100m~500m: 5%->30%)
+    let moveProb = distM < 100 ? 0.05 : Math.min(0.3, 0.05 + (0.25 * ((distM - 100) / 400)));
+    let moveType = 'normal';
+    if (rand < moveProb) {
+        moveType = Math.random() > 0.5 ? 'h' : 'v'; // 상하(v) 또는 좌우(h) 랜덤 선택
+    }
+
     return {
-        x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
+        x: Math.random() * (393 - width), y: yPos, baseY: yPos, // 상하 이동 기준점 저장
+        w: width, h: 22,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
         isBreakable: isBreakable, durability: isBreakable ? 1 : 999,
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
         mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
-        type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false, isTouched: false
+        type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40, // 이동 속도 및 상하 범위
+        vPhase: Math.random() * Math.PI * 2, // 상하 이동 위기
+        isBroken: false, isTouched: false
     };
 }
 
@@ -115,11 +128,10 @@ function initPlatforms() {
     startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
-        // ★ 최소 100px, 최대 210px 간격으로 배치
-        lastY -= (100 + Math.random() * 110); 
+        lastY -= (50 + Math.random() * 160); 
         platforms.push(createPlatformData(lastY));
     }
-    platforms.push({ x: 393/2-69, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false });
+    platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -138,8 +150,18 @@ function update() {
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
 
     platforms.forEach(p => {
-        if (p.hasMouse) {
-            if (!p.isBroken) {
+        if (!p.isBroken) {
+            // ★ 발판 이동 로직 (상하/좌우)
+            if (p.type === 'h') { 
+                p.x += p.speed; 
+                if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; 
+            } else if (p.type === 'v') {
+                p.vPhase += 0.03;
+                p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange; // 상하 왕복 계산
+            }
+
+            // ★ 쥐돌이 AI 및 충돌
+            if (p.hasMouse) {
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
                 else {
                     p.mouseX += p.mouseDir * p.mouseSpeed;
@@ -154,13 +176,9 @@ function update() {
                 if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
                     velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
                 }
-            } else {
-                p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY;
             }
-        }
 
-        if (!p.isBroken) {
-            if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
+            // ★ 캐릭터 착지 체크
             if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
                 loadRive('kongsik_ingame_land.riv'); 
                 velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
@@ -174,6 +192,9 @@ function update() {
                     }
                 }
             }
+        } else if (p.hasMouse) {
+            // ★ 추락 쥐돌이
+            p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY;
         }
     });
 
@@ -187,10 +208,9 @@ function update() {
         scoreEl.innerText = Math.floor(score * 0.01) + "m";
         bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
         platforms.forEach(p => {
-            p.y += diff;
-            if (p.y > 852) { 
-                // ★ 발판 재생성 시에도 최대 간격을 210px로 제한
-                let randomGap = 100 + Math.random() * 110;
+            p.y += diff; p.baseY += diff; // 기준점도 함께 이동
+            if (p.y > 852 && p.baseY > 852) { 
+                let randomGap = 50 + Math.random() * 160;
                 Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); 
                 p.isBroken = false; 
             }
