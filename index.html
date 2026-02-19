@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 무빙 발판 패치</title>
+    <title>콩콩춘식 - 발판 이미지 적용 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -24,16 +24,13 @@
         }
         canvas { width: 100%; height: 100%; }
         
+        /* 발판 이미지 적용 */
         .platform {
             position: absolute;
-            background: #5c3e34;
-            border-radius: 4px;
-            box-sizing: border-box;
-            border: 2px solid #3d2b24;
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            /* 기존 border와 background-color 제거 */
         }
-        /* 움직이는 발판은 색상으로 구분 (나중에 이미지로 대체 가능) */
-        .platform.moving-h { background: #8D6E63; border-color: #FEE500; }
-        .platform.moving-v { background: #4E342E; border-color: #00BCD4; }
     </style>
 </head>
 <body>
@@ -55,10 +52,11 @@ const PHYSICS = {
     baseGap: 160 
 };
 
-const PLATFORM_SIZES = [
-    { w: 139, h: 24 },
-    { w: 99, h: 24 },
-    { w: 59, h: 24 }
+// 발판 이미지 경로 및 사이즈 매칭
+const PLATFORM_CONFIG = [
+    { w: 139, h: 24, img: 'wood_1.png' },
+    { w: 99, h: 24, img: 'wood_2.png' },
+    { w: 59, h: 24, img: 'wood_3.png' }
 ];
 
 let currentY = 0, velocityY = 0, posX = 0;
@@ -78,23 +76,23 @@ function loadRive(fileName) {
     });
 }
 
-// 발판 생성 로직 (움직임 타입 추가)
 function createPlatformData(yPos) {
-    const size = PLATFORM_SIZES[Math.floor(Math.random() * PLATFORM_SIZES.length)];
+    const config = PLATFORM_CONFIG[Math.floor(Math.random() * PLATFORM_CONFIG.length)];
     const rand = Math.random();
     let type = 'normal';
     
-    if (rand > 0.7) type = 'h'; // 30% 좌우 이동
-    else if (rand > 0.6) type = 'v'; // 10% 상하 이동
+    if (rand > 0.7) type = 'h'; 
+    else if (rand > 0.6) type = 'v'; 
 
     return {
-        x: Math.random() * (PHYSICS.stageWidth - size.w),
+        x: Math.random() * (PHYSICS.stageWidth - config.w),
         y: yPos,
-        w: size.w,
-        h: size.h,
+        w: config.w,
+        h: config.h,
+        img: config.img,
         type: type,
-        speed: (Math.random() * 2 + 1) * (Math.random() > 0.5 ? 1 : -1), // 이동 속도
-        offset: 0, // 상하 이동용
+        speed: (Math.random() * 2 + 1) * (Math.random() > 0.5 ? 1 : -1),
+        offset: 0,
         initialY: yPos
     };
 }
@@ -102,11 +100,11 @@ function createPlatformData(yPos) {
 function initPlatforms() {
     platforms = [];
     for (let i = 0; i < 5; i++) {
-        // 간격에 랜덤성 추가 (baseGap +- 30px)
         const randomY = i * (PHYSICS.baseGap + (Math.random() * 60 - 30));
         platforms.push(createPlatformData(randomY + 50));
     }
-    platforms.push({ x: PHYSICS.stageWidth/2 - 69.5, y: 752, w: 139, h: 24, type: 'normal' }); 
+    // 시작 발판 (wood_1 적용)
+    platforms.push({ x: PHYSICS.stageWidth/2 - 69.5, y: 752, w: 139, h: 24, img: 'wood_1.png', type: 'normal' }); 
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -123,14 +121,13 @@ function update() {
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // 움직이는 발판 로직 업데이트
     platforms.forEach(p => {
         if (p.type === 'h') {
             p.x += p.speed;
             if (p.x <= 0 || p.x + p.w >= PHYSICS.stageWidth) p.speed *= -1;
         } else if (p.type === 'v') {
             p.offset += 0.05;
-            p.y = p.initialY + Math.sin(p.offset) * 40; // 40px 범위 왕복
+            p.y = p.initialY + Math.sin(p.offset) * 40;
         }
     });
 
@@ -156,13 +153,12 @@ function update() {
         });
     }
 
-    // 스크롤 및 재생성
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
         platforms.forEach(p => {
             p.y += diff;
-            if (p.initialY !== undefined) p.initialY += diff; // 상하 이동 기준점도 같이 이동
+            if (p.initialY !== undefined) p.initialY += diff;
             
             if (p.y > PHYSICS.stageHeight) {
                 const highestY = Math.min(...platforms.map(plat => plat.y));
@@ -192,11 +188,12 @@ function renderPlatforms() {
     
     platforms.forEach(p => {
         const div = document.createElement('div');
-        div.className = `platform ${p.type !== 'normal' ? 'moving-' + p.type : ''}`;
+        div.className = 'platform';
         div.style.left = p.x + 'px';
         div.style.top = p.y + 'px';
         div.style.width = p.w + 'px';
         div.style.height = p.h + 'px';
+        div.style.backgroundImage = `url('${p.img}')`; // 이미지 적용
         stage.appendChild(div);
     });
 }
