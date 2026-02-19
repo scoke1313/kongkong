@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - UI 및 밸런스 패치</title>
+    <title>콩콩춘식 - 황금빛 슈퍼 점프 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -29,11 +29,20 @@
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
 
-        /* 슈퍼 점프 번쩍임 완화 (투명도 최소값 0.7로 상향) */
+        /* ★ 황금빛 노란색 번쩍임 효과 (Golden Yellow Flicker) */
         @keyframes flicker {
-            0% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7)) brightness(1.2); }
-            50% { opacity: 0.7; filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.8)) brightness(1.4); }
-            100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7)) brightness(1.2); }
+            0% { 
+                opacity: 1; 
+                filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); 
+            }
+            50% { 
+                opacity: 0.8; 
+                filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.9)) brightness(1.5); 
+            }
+            100% { 
+                opacity: 1; 
+                filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); 
+            }
         }
         .gold-glow { animation: flicker 0.15s infinite; }
 
@@ -41,10 +50,10 @@
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         
-        /* 아이템 50px 축소 */
+        /* 아이템 50px */
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         
-        /* 픽업 이펙트 23px 축소 */
+        /* 픽업 이펙트 23px */
         .pickup-effect { position: absolute; font-weight: bold; color: #4CAF50; font-size: 23px; z-index: 20; pointer-events: none; transition: transform 0.8s, opacity 0.8s; }
         
         .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
@@ -76,6 +85,7 @@
 </div>
 
 <script>
+// (이하 스크립트 부분은 이전과 동일하므로 중복 생략하거나, 그대로 유지하시면 됩니다)
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
@@ -216,7 +226,6 @@ function update() {
                 p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange;
             }
 
-            // 아이템 충돌 판정 (50px에 맞춤)
             if (p.item && !p.itemCollected) {
                 let ix = p.x + p.w/2 - 25, iy = p.y - 55;
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
