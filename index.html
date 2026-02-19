@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 로딩 완벽 해결</title>
+  <title>콩콩춘식 - 모션 재생 완벽 해결</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -47,17 +47,8 @@
   const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
   bgCanvas.width = 480; bgCanvas.height = 800;
 
-  let landRive = null, airRive = null;
+  let landRive, airRive;
   let landReady = false, airReady = false;
-
-  // 1. 로딩 체크 로직 강화 (절대 안 멈춤)
-  function checkReady() {
-    console.log("Land:", landReady, "Air:", airReady);
-    if(landReady && airReady) {
-      status.innerText = "준비 완료! 🐯";
-      btnStart.classList.remove('hidden');
-    }
-  }
 
   function init() {
     landRive = new rive.Rive({
@@ -66,27 +57,23 @@
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
       autoplay: false,
-      onLoad: () => { 
-        landReady = true; 
-        landRive.resizeDrawingSurfaceToCanvas(); // 잘림 방지
-        checkReady(); 
-      },
-      onLoadError: () => { status.innerText = "LAND 파일 로드 실패!"; }
+      onLoad: () => { landReady = true; landRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
-
     airRive = new rive.Rive({
       src: 'kongsik_ingame_air.riv',
       canvas: airCanvas,
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
       autoplay: false,
-      onLoad: () => { 
-        airReady = true; 
-        airRive.resizeDrawingSurfaceToCanvas(); // 잘림 방지
-        checkReady(); 
-      },
-      onLoadError: () => { status.innerText = "AIR 파일 로드 실패!"; }
+      onLoad: () => { airReady = true; airRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
+  }
+
+  function checkReady() {
+    if(landReady && airReady) {
+      status.innerText = "준비 완료! 🐯";
+      btnStart.classList.remove('hidden');
+    }
   }
   init();
 
@@ -117,22 +104,28 @@
     }
     p.y += p.vy;
 
+    // 바닥 충돌 시 (LAND 모션 전환)
     if (p.y > 600 && !isSpringing && p.vy > 0) {
       p.y = 600;
       isSpringing = true;
       landLockTimer = MIN_LAND_TIME;
-      setLayer(landCanvas); 
-      landRive.scrub("State Machine 1", 0);
-      landRive.play("State Machine 1");
+      
+      if (!landCanvas.classList.contains('active-chun')) {
+        setLayer(landCanvas); 
+        landRive.scrub("State Machine 1", 0); // 처음 딱 한 번만 리셋
+        landRive.play("State Machine 1");
+      }
     } 
 
+    // 타이머 종료 후 상승 시 (AIR 모션 전환)
     if (landLockTimer > 0) {
       landLockTimer -= dt;
-    } else if (p.vy < 0) {
-      // 2. 공중 모션 전환 시 0프레임 리셋
+    } 
+    else if (p.vy < 0) {
+      // 핵심 수정: '공중 캔버스가 비활성 상태일 때만' 리셋을 실행
       if (!airCanvas.classList.contains('active-chun')) {
         setLayer(airCanvas);
-        airRive.scrub("State Machine 1", 0);
+        airRive.scrub("State Machine 1", 0); // 전환 시점에만 리셋
         airRive.play("State Machine 1");
       }
     }
