@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 이중 모션 합체</title>
+  <title>콩콩춘식 - 로딩 해결 버전</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -42,59 +42,56 @@
   }
   window.addEventListener('resize', resize); resize();
 
-  let landRive, airRive, currentRive;
-  let loadedCount = 0;
+  let landRive = null, airRive = null, currentRive = null;
+  let landReady = false, airReady = false;
 
-  // 1. 파일 두 개를 바이너리로 각각 로드 
-  async function loadFile(url) {
-    const r = await fetch(url);
-    return await r.arrayBuffer();
-  }
-
-  async function initRive() {
+  // 1. 각 파일을 개별적으로 로드하여 에러 지점 확인
+  async function init() {
     try {
-      const landBuf = await loadFile('kongsik_ingame_land.riv'); [cite: 1378]
-      const airBuf = await loadFile('kongsik_ingame_air.riv'); [cite: 1090]
-
+      // LAND 모션 로드
       landRive = new rive.Rive({
-        buffer: landBuf,
-        canvas: chunCanvas,
-        artboard: 'Artboard',
-        stateMachines: 'State Machine 1',
-        autoplay: false, // 상황에 맞춰 트리거
-        onLoad: () => checkAllLoaded()
-      });
-
-      airRive = new rive.Rive({
-        buffer: airBuf,
+        src: 'kongsik_ingame_land.riv',
         canvas: chunCanvas,
         artboard: 'Artboard',
         stateMachines: 'State Machine 1',
         autoplay: false,
-        onLoad: () => checkAllLoaded()
+        onLoad: () => { landReady = true; checkStart(); },
+        onLoadError: () => console.error("LAND 파일 로드 실패")
       });
-    } catch(e) { status.innerText = "❌ 파일 확인 요망"; }
+
+      // AIR 모션 로드
+      airRive = new rive.Rive({
+        src: 'kongsik_ingame_air.riv',
+        canvas: chunCanvas,
+        artboard: 'Artboard',
+        stateMachines: 'State Machine 1',
+        autoplay: false,
+        onLoad: () => { airReady = true; checkStart(); },
+        onLoadError: () => console.error("AIR 파일 로드 실패")
+      });
+    } catch (e) {
+      status.innerText = "로딩 에러 발생!";
+    }
   }
 
-  function checkAllLoaded() {
-    loadedCount++;
-    if(loadedCount === 2) {
-      status.innerText = "준비 완료! 🐯";
+  function checkStart() {
+    // 두 모션 중 하나라도 준비되면 일단 시작 가능하게 처리
+    if(landReady && airReady) {
+      status.innerText = "모두 준비 완료! 🐯";
       btnStart.classList.remove('hidden');
     }
   }
-  initRive();
+  init();
 
-  // 물리 설정 (0.7초 체류 점프)
   let jumpPower = -12, gravity = 0.75; 
   let p = { x: 0, y: 0, vx: 0, vy: jumpPower }, isRunning = false, lastDir = 1;
   const keys = { left: false, right: false };
   let platforms = [];
 
-  // 시선 방향 반전 로직 (이동과 반대)
+  // 시선 방향 반전 (이동 방향과 반대)
   window.addEventListener('keydown', e => { 
-    if(e.code==='ArrowLeft'){ keys.left=true; lastDir=1; } // 왼쪽 이동 시 오른쪽 봄
-    if(e.code==='ArrowRight'){ keys.right=true; lastDir=-1; } // 오른쪽 이동 시 왼쪽 봄
+    if(e.code==='ArrowLeft'){ keys.left=true; lastDir=1; } 
+    if(e.code==='ArrowRight'){ keys.right=true; lastDir=-1; } 
   });
   window.addEventListener('keyup', e => { if(e.code==='ArrowLeft')keys.left=false; if(e.code==='ArrowRight')keys.right=false; });
 
@@ -114,27 +111,25 @@
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
     bgCtx.fillStyle = "#9CCC65"; 
 
-    // --- 2. 모션 스위칭 로직 (vy 속도 기준) ---
-    if (loadedCount === 2) {
-      if (p.vy < 0) { // 상승 중
-        if (currentRive !== airRive) {
-          if(currentRive) currentRive.stop();
-          currentRive = airRive;
-          currentRive.play(); // 공중 동작은 지속 재생
-        }
+    // 모션 스위칭 (상승 시 AIR 모션)
+    if (p.vy < 0 && airReady) {
+      if (currentRive !== airRive) {
+        if(currentRive) currentRive.stop();
+        currentRive = airRive;
+        currentRive.play();
       }
     }
 
     platforms.forEach(pl => {
       bgCtx.fillRect(pl.x, pl.y, 120, 15);
-      // 발판 충돌 시: 착지(land) 모션으로 교체
+      // 발판 충돌 시 LAND 모션 리셋 재생
       if(p.vy > 0 && p.x > pl.x-15 && p.x < pl.x+135 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) {
         p.vy = jumpPower;
-        if(loadedCount === 2) {
+        if(landReady) {
           if(currentRive) currentRive.stop();
           currentRive = landRive;
-          currentRive.scrub("State Machine 1", 0); // 0프레임 리셋
-          currentRive.play("State Machine 1"); // 1회 재생
+          currentRive.scrub("State Machine 1", 0);
+          currentRive.play("State Machine 1");
         }
       }
     });
@@ -147,7 +142,7 @@
     if (currentRive) {
       chunCanvas.style.display = 'block';
       chunCanvas.style.left = (p.x - 43) + 'px';
-      chunCanvas.style.top = (p.y - 69) + 'px';
+      chunCanvas.style.top = (p.y - 69) + 'px'; // 86x138 보정
       chunCanvas.style.transform = `scaleX(${lastDir})`; 
     }
     if(p.y > bgCanvas.height + 150) reset();
