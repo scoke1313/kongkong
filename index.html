@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 통합 커스텀 패치</title>
+    <title>콩콩춘식 - UI 가시성 개선 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,24 +13,23 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 상단 네비게이션 영역 (393x60) --- */
+        /* --- 상단 네비게이션 바 (유동폭 수정) --- */
         #nav-bar {
-            position: absolute; top: 0; left: 0; width: 393px; height: 60px;
+            position: absolute; top: 0; left: 0; width: 100%; max-width: 393px; height: 60px;
             display: flex; align-items: center; padding: 0 20px; box-sizing: border-box; z-index: 110;
         }
-        #btn-close { width: 24px; height: 24px; cursor: pointer; }
+        #btn-close { width: 28px; height: 28px; cursor: pointer; }
 
-        /* 숫자 UI를 네비게이션 아래인 70px 지점에 배치 */
+        /* 숫자 UI 배치 */
         #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
         #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
-        /* --- 캐릭터 및 효과 --- */
         #canvas-container {
             position: absolute; width: 86px !important; height: 138px !important;
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
 
-        /* ★ 황금빛 노란색 번쩍임 효과 (부드럽게 완화) */
+        /* 황금빛 번쩍임 효과 */
         @keyframes flicker {
             0% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); }
             50% { opacity: 0.8; filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.9)) brightness(1.5); }
@@ -42,12 +41,12 @@
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         
-        /* 아이템 50px 축소 */
+        /* 아이템 50px */
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         
-        /* ★ 픽업 이펙트 이미지화 (effect_pickup.png) 및 23px급 높이 조절 */
+        /* ★ 픽업 이펙트 2배 확대 (160x80) */
         .pickup-effect { 
-            position: absolute; width: 80px; height: 40px; 
+            position: absolute; width: 160px; height: 80px; 
             background-image: url('effect_pickup.png'); background-size: contain;
             background-repeat: no-repeat; background-position: center;
             z-index: 120; pointer-events: none; transition: transform 0.8s, opacity 0.8s; 
@@ -120,13 +119,7 @@ function loadRive(fileName) {
     if (lastLoadedFile === fileName) return;
     lastLoadedFile = fileName;
     if (riveInstance) riveInstance.cleanup();
-    riveInstance = new rive.Rive({ 
-        src: fileName, 
-        canvas: document.getElementById('canvas'), 
-        autoplay: true, 
-        stateMachines: 'State Machine 1', 
-        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); } 
-    });
+    riveInstance = new rive.Rive({ src: fileName, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); } });
 }
 
 function createPlatformData(yPos) {
@@ -138,42 +131,15 @@ function createPlatformData(yPos) {
     let isBreakable = rand < woodProb;
     const typeKey = isBreakable ? 'wood' : 'block';
     let canHaveMouse = (width === 138) && (rand < 0.2); 
-
     let itemType = null;
-    if (!canHaveMouse && rand > 0.85) {
-        itemType = Math.random() > 0.6 ? 'gold' : 'clover';
-    }
-
+    if (!canHaveMouse && rand > 0.85) { itemType = Math.random() > 0.6 ? 'gold' : 'clover'; }
     let moveProb = distM < 100 ? 0.05 : Math.min(0.4, 0.05 + (0.35 * ((distM - 100) / 400)));
-    let moveType = 'normal';
-    if (rand < moveProb) {
-        if (distM < 100) moveType = 'h'; 
-        else moveType = Math.random() > 0.5 ? 'h' : 'v'; 
-    }
-
-    return {
-        x: Math.random() * (393 - width), y: yPos, baseY: yPos,
-        w: width, h: 22,
-        img: PLATFORM_TYPES[typeKey][sizeIdx],
-        isBreakable: isBreakable, durability: isBreakable ? 1 : 999,
-        hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
-        mouseSpeed: 0.7 + Math.random() * 0.5, 
-        mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
-        item: itemType, itemCollected: false,
-        type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40,
-        vPhase: Math.random() * Math.PI * 2,
-        isBroken: false, isTouched: false
-    };
+    let moveType = (rand < moveProb) ? (distM < 100 ? 'h' : (Math.random() > 0.5 ? 'h' : 'v')) : 'normal';
+    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[typeKey][sizeIdx], isBreakable: isBreakable, durability: isBreakable ? 1 : 999, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1, mouseSpeed: 0.7 + Math.random() * 0.5, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false, isTouched: false };
 }
 
 function spawnBreakParticles(x, y, width) {
-    for (let i = 0; i < 15; i++) {
-        particles.push({
-            x: x + Math.random() * width, y: y,
-            vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 1) * 6,
-            life: 1.0, size: Math.random() * 3 + 2, color: '#BCAAA4'
-        });
-    }
+    for (let i = 0; i < 15; i++) { particles.push({ x: x + Math.random() * width, y: y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 1) * 6, life: 1.0, size: Math.random() * 3 + 2, color: '#BCAAA4' }); }
 }
 
 function initPlatforms() {
@@ -185,10 +151,7 @@ function initPlatforms() {
     document.getElementById('game-stage').style.backgroundPositionY = '0px';
     platforms = []; particles = [];
     let lastY = 752;
-    for (let i = 0; i < 6; i++) {
-        lastY -= (100 + Math.random() * 110); 
-        platforms.push(createPlatformData(lastY));
-    }
+    for (let i = 0; i < 6; i++) { lastY -= (100 + Math.random() * 110); platforms.push(createPlatformData(lastY)); }
     platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
 }
 
@@ -198,135 +161,68 @@ initPlatforms();
 function update() {
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    const limit = 393/2 - 43;
-    posX = Math.max(-limit, Math.min(limit, posX));
-
+    const limit = 393/2 - 43; posX = Math.max(-limit, Math.min(limit, posX));
     velocityY += isSuperJumping ? PHYSICS.gravity * 0.5 : PHYSICS.gravity;
-    currentY += velocityY;
-    mouseAnimFrame = (mouseAnimFrame + 1) % 20;
-
+    currentY += velocityY; mouseAnimFrame = (mouseAnimFrame + 1) % 20;
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
-
-    if (isSuperJumping && velocityY >= 0) {
-        isSuperJumping = false;
-        canvasCont.classList.remove('gold-glow');
-    }
-
+    if (isSuperJumping && velocityY >= 0) { isSuperJumping = false; canvasCont.classList.remove('gold-glow'); }
     platforms.forEach(p => {
         if (!p.isBroken) {
-            if (p.type === 'h') { 
-                p.x += p.speed; 
-                if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; 
-            } else if (p.type === 'v') {
-                p.vPhase += 0.03;
-                p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange;
-            }
-
+            if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
+            else if (p.type === 'v') { p.vPhase += 0.03; p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange; }
             if (p.item && !p.itemCollected) {
                 let ix = p.x + p.w/2 - 25, iy = p.y - 55;
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
-                        cloverRate += 0.1;
-                        rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
-                        
-                        // ★ effect_pickup.png 이펙트 생성
+                        cloverRate += 0.1; rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
                         let eff = document.createElement('div');
                         eff.className = 'pickup-effect'; 
-                        eff.style.left = (ix + 25 - 40) + 'px'; 
-                        eff.style.top = (iy - 20) + 'px'; 
+                        // ★ 확대된 사이즈에 맞춰 위치 보정 (중앙 정렬)
+                        eff.style.left = (ix + 25 - 80) + 'px'; eff.style.top = (iy - 40) + 'px'; 
                         document.getElementById('game-stage').appendChild(eff);
-                        
-                        setTimeout(() => { eff.style.transform = 'translateY(-60px)'; eff.style.opacity = '0'; }, 10);
+                        setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10);
                         setTimeout(() => eff.remove(), 800);
-
-                    } else if (p.item === 'gold') {
-                        isSuperJumping = true;
-                        velocityY = PHYSICS.superJumpPower; 
-                        canvasCont.classList.add('gold-glow');
-                        loadRive('kongsik_ingame_air.riv');
-                    }
+                    } else if (p.item === 'gold') { isSuperJumping = true; velocityY = PHYSICS.superJumpPower; canvasCont.classList.add('gold-glow'); loadRive('kongsik_ingame_air.riv'); }
                 }
             }
-
             if (!isSuperJumping && p.hasMouse) {
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
-                else {
-                    p.mouseX += p.mouseDir * p.mouseSpeed;
-                    if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) {
-                        p.mouseDir *= -1;
-                        p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); 
-                    }
-                }
+                else { p.mouseX += p.mouseDir * p.mouseSpeed; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) { p.mouseDir *= -1; p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); } }
                 let mx = p.x + p.mouseX, my = p.y - 35;
-                if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
-                    velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
-                }
+                if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) { velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); }
             }
-
-            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
-                loadRive('kongsik_ingame_land.riv'); 
-                velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
-                motionTimer = PHYSICS.motionHold; 
-                p.isTouched = true;
-                if (p.isBreakable) { 
-                    p.durability--; 
-                    if (p.durability <= 0) { p.isBroken = true; spawnBreakParticles(p.x, p.y, p.w); }
-                }
-            }
-        } else if (p.hasMouse) {
-            p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY;
-        }
+            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) { p.isBroken = true; spawnBreakParticles(p.x, p.y, p.w); } } }
+        } else if (p.hasMouse) { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
     });
-
     particles.forEach((part) => { part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02; });
     particles = particles.filter(part => part.life > 0);
-
     if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
-
     if (currentY < -250) {
-        let diff = -250 - currentY; currentY = -250; score += diff; 
-        scoreEl.innerText = Math.floor(score * 0.01) + "m";
+        let diff = -250 - currentY; currentY = -250; score += diff; scoreEl.innerText = Math.floor(score * 0.01) + "m";
         bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => {
-            p.y += diff; p.baseY += diff;
-            if (p.y > 852 && p.baseY > 852) { 
-                let randomGap = 50 + Math.random() * 160;
-                Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); 
-                p.isBroken = false; 
-            }
-        });
+        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { let randomGap = 50 + Math.random() * 160; Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); p.isBroken = false; } });
         particles.forEach(part => part.y += diff);
     }
-
     if (charFootY > 1050) initPlatforms();
-
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
-    
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
-    
     particles.forEach(part => {
         const pdiv = document.createElement('div');
-        pdiv.className = 'particle';
-        pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
+        pdiv.className = 'particle'; pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
         stage.appendChild(pdiv);
     });
-
     platforms.forEach(p => {
         if (!p.isBroken) {
             const d = document.createElement('div');
-            d.className = 'platform'; 
-            let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
+            d.className = 'platform'; let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
             d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
             stage.appendChild(d);
-
             if (p.item && !p.itemCollected) {
                 const itemDiv = document.createElement('div');
-                itemDiv.className = 'game-item';
-                itemDiv.style.backgroundImage = `url('item_${p.item}.png')`;
-                itemDiv.style.left = (p.x + p.w/2 - 25) + 'px';
-                itemDiv.style.top = (p.y - 55) + 'px';
+                itemDiv.className = 'game-item'; itemDiv.style.backgroundImage = `url('item_${p.item}.png')`;
+                itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
                 stage.appendChild(itemDiv);
             }
         }
