@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 긴급 복구판</title>
+  <title>콩콩춘식 - 온라인 최적화판</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
     #game{position:relative;width:100%;max-width:480px;height:100%;max-height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     canvas{width:100%;height:100%;display:block}
-    #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
-    .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.55);color:#fff;text-align:center;padding:24px}
-    .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
+    #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;box-shadow:0 8px 24px rgba(0,0,0,.1)}
+    .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.6);color:#fff;text-align:center;padding:24px}
+    .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer;box-shadow:0 6px 0 #cdae04}
     .hidden{display:none!important}
     #touchL,#touchR{position:absolute;bottom:0;width:50%;height:100%;z-index:3}
     #touchL{left:0} #touchR{right:0}
@@ -23,9 +23,9 @@
   <div id="hud">금리: <span id="rate">2.0</span>%</div>
   <canvas id="cv"></canvas>
   <div id="start" class="overlay">
-    <h1 style="color:#FFEF6B; font-size:36px; text-shadow:2px 2px 0 #333;">콩콩춘식</h1>
-    <div id="loadMsg" style="color:#FFEF6B; font-weight:800; font-size:16px;">캐릭터 로딩 중... (서버 연결 확인)</div>
-    <button class="btn" id="btnStart">무시하고 게임 시작</button>
+    <h1 style="color:#FFEF6B; font-size:32px; text-shadow:2px 2px 0 #333;">콩콩춘식</h1>
+    <div id="loadMsg" style="color:#FFEF6B; font-weight:800; font-size:14px; margin-bottom:10px;">캐릭터 로딩 대기 중...</div>
+    <button class="btn" id="btnStart">게임 시작</button>
   </div>
   <div id="touchL"></div>
   <div id="touchR"></div>
@@ -41,38 +41,41 @@
   function resize(){ canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
   window.addEventListener('resize', resize); resize();
 
-  // --- Rive 가상 캔버스 설정 (86x112) ---
+  // --- Rive 가상 캔버스 ---
   const RIVE_W = 86, RIVE_H = 112;
   const riveCanvas = document.createElement('canvas');
   riveCanvas.width = RIVE_W; riveCanvas.height = RIVE_H;
-
   let kongsikLoaded = false;
-  let r;
+  let rInstance = null;
 
-  try {
-    r = new rive.Rive({
-      src: 'kongsik_ingame.riv',
-      canvas: riveCanvas,
-      autoplay: true,
-      layout: new rive.Layout({ fit: rive.Fit.Contain, alignment: rive.Alignment.Center }),
-      onLoad: () => {
-        r.resizeDrawingSurfaceToCanvas();
-        kongsikLoaded = true;
-        loadMsg.innerText = "춘식이 준비 완료! 🐯";
-      },
-      onLoadError: () => {
-        console.error("Rive 로드 실패");
-        loadMsg.innerText = "⚠️ 캐릭터 로드 실패 (파일 또는 서버 확인)";
-      }
-    });
-  } catch(e) { console.error("Rive 초기화 에러", e); }
+  // Rive 비동기 로드
+  function initRive() {
+    try {
+      if (typeof rive === 'undefined') return;
+      rInstance = new rive.Rive({
+        src: 'kongsik_ingame.riv',
+        canvas: riveCanvas,
+        artboard: 'Artboard',
+        autoplay: true,
+        onLoad: () => {
+          rInstance.resizeDrawingSurfaceToCanvas();
+          kongsikLoaded = true;
+          loadMsg.innerText = "춘식이 로딩 완료! 🐯";
+        }
+      });
+    } catch (e) { console.warn("Rive 로딩 실패:", e); }
+  }
+  initRive();
 
-  // 게임 로직
-  let score=2.0, isOver=false, lastTime=0, lastInputDir = 1;
-  const keys = {left:false, right:false};
+  // --- 게임 엔진 ---
   let p = { x: 0, y: 0, vx: 0, vy: 0 };
   let platforms = [];
+  let lastTime = 0;
+  let isRunning = false;
+  let lastInputDir = 1;
+  const keys = { left: false, right: false };
 
+  // 조작키 (키보드)
   window.addEventListener('keydown', e => {
     if(e.code==='ArrowLeft') { keys.left=true; lastInputDir=-1; }
     if(e.code==='ArrowRight') { keys.right=true; lastInputDir=1; }
@@ -82,77 +85,74 @@
     if(e.code==='ArrowRight') keys.right=false;
   });
 
+  // 조작키 (터치)
   const tL=document.getElementById('touchL'), tR=document.getElementById('touchR');
-  tL.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left=true; lastInputDir=-1; });
+  tL.addEventListener('touchstart', e => { e.preventDefault(); keys.left=true; lastInputDir=-1; });
   tL.addEventListener('touchend', () => keys.left=false);
-  tR.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right=true; lastInputDir=1; });
+  tR.addEventListener('touchstart', e => { e.preventDefault(); keys.right=true; lastInputDir=1; });
   tR.addEventListener('touchend', () => keys.right=false);
 
   function reset() {
-    isOver = false;
     p.x = canvas.width / 2;
     p.y = canvas.height - 200;
     p.vx = 0; p.vy = -12;
     platforms = [];
-    for(let i=0; i<8; i++) {
-      platforms.push({ x: Math.random() * (canvas.width - 120), y: canvas.height - 70 - i * 95 });
-    }
+    for(let i=0; i<8; i++) platforms.push({ x: Math.random()*(canvas.width-120), y: canvas.height-70-i*92 });
   }
 
   function loop(now) {
+    if(!isRunning) return;
     let dt = (now - lastTime) / 1000;
     lastTime = now;
     if(dt > 0.1) dt = 0.016;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if(!isOver) {
-      // 물리
-      if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
-      p.x += p.vx; p.vy += 0.45; p.y += p.vy;
+    // 물리 및 이동 (조작키 반영) [cite: 1]
+    if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
+    p.x += p.vx; p.vy += 0.45; p.y += p.vy;
 
-      if(p.x < -30) p.x = canvas.width + 30;
-      if(p.x > canvas.width + 30) p.x = -30;
+    if(p.x < -30) p.x = canvas.width + 30;
+    if(p.x > canvas.width + 30) p.x = -30;
 
-      // 스크롤
-      if(p.y < canvas.height / 2 && p.vy < 0) {
-        let dy = -p.vy; p.y += dy;
-        platforms.forEach(pl => {
-          pl.y += dy;
-          if(pl.y > canvas.height) { pl.y -= 95 * 8; pl.x = Math.random() * (canvas.width - 120); }
-        });
-      }
-
-      // 발판
-      ctx.fillStyle = "#9CCC65";
+    // 스크롤 [cite: 1]
+    if(p.y < canvas.height / 2 && p.vy < 0) {
+      let dy = -p.vy; p.y += dy;
       platforms.forEach(pl => {
-        ctx.fillRect(pl.x, pl.y, 120, 15);
-        if(p.vy > 0 && p.x > pl.x - 20 && p.x < pl.x + 140 && p.y + 35 >= pl.y && p.y + 35 <= pl.y + 20) {
-          p.y = pl.y - 35; p.vy = -12;
-        }
+        pl.y += dy;
+        if(pl.y > canvas.height) { pl.y -= 92 * 8; pl.x = Math.random() * (canvas.width - 120); }
       });
-
-      // 춘식이 (로드 완료 시에만 drawImage 호출)
-      if(kongsikLoaded) {
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        if(lastInputDir === 1) ctx.scale(-1, 1);
-        ctx.drawImage(riveCanvas, -RIVE_W/2, -RIVE_H/2, RIVE_W, RIVE_H);
-        ctx.restore();
-      } else {
-        // 로딩 중일 때 임시 박스 (캐릭터 위치 확인용)
-        ctx.fillStyle = "rgba(254, 229, 0, 0.5)";
-        ctx.fillRect(p.x - 20, p.y - 30, 40, 60);
-      }
-
-      if(p.y > canvas.height + 100) reset();
     }
 
+    // 발판 그리기 [cite: 1]
+    ctx.fillStyle = "#9CCC65";
+    platforms.forEach(pl => {
+      ctx.fillRect(pl.x, pl.y, 120, 15);
+      if(p.vy > 0 && p.x > pl.x-10 && p.x < pl.x+130 && p.y+35 >= pl.y && p.y+35 <= pl.y+20) {
+        p.vy = -12;
+      }
+    });
+
+    // 캐릭터 그리기 
+    if(kongsikLoaded) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if(lastInputDir === 1) ctx.scale(-1, 1);
+      ctx.drawImage(riveCanvas, -RIVE_W/2, -RIVE_H/2, RIVE_W, RIVE_H);
+      ctx.restore();
+    } else {
+      // 로딩 중일 때 노란 박스 (물리 엔진 작동 확인용) 
+      ctx.fillStyle = "rgba(254, 229, 0, 0.7)";
+      ctx.fillRect(p.x - 20, p.y - 25, 40, 50);
+    }
+
+    if(p.y > canvas.height + 100) reset();
     requestAnimationFrame(loop);
   }
 
   btnStart.onclick = () => {
     document.getElementById('start').classList.add('hidden');
+    isRunning = true;
     reset();
     lastTime = performance.now();
     requestAnimationFrame(loop);
