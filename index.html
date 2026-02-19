@@ -11,193 +11,228 @@
             position: relative; 
             width: 393px; 
             height: 852px; 
-            /* 레이어 순서: 배경색(가장 아래) -> 배경 이미지(그 위) */
-            background-color: #FFFDF5; 
-            background-image: url('bg_ingame.jpg');
-            background-repeat: repeat-y;
+            /* 교정: 이미지를 컬러보다 앞에 배치 (이미지 -> 컬러 순서) */
+            background: url('bg_ingame.jpg') repeat-y, #FFFDF5;
             background-size: 100% auto;
-            background-position: 0 0;
             overflow: hidden; 
         }
 
-        /* 물체들이 배경 이미지 위에서 보이도록 설정 */
-        #object-layer { 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            z-index: 5; 
-            pointer-events: none;
-        }
-        
         #canvas-container {
-            position: absolute; width: 86px; height: 138px;
-            bottom: 100px; left: 50%; margin-left: -43px; 
+            position: absolute;
+            width: 86px;
+            height: 138px;
+            bottom: 100px; 
+            left: 50%;
+            margin-left: -43px; 
             z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
         
-        .platform, .obstacle { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+        .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; z-index: 5; }
         
         .controller {
-            position: absolute; width: 80px; height: 80px; background-size: contain;
-            z-index: 50; cursor: pointer; -webkit-tap-highlight-color: transparent;
+            position: absolute; width: 80px; height: 80px;
+            background-size: contain; background-repeat: no-repeat;
+            z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
         }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
-        
-        #score-board {
-            position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold;
-            color: #5c3e34; z-index: 100; font-family: sans-serif;
-        }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
-    <div id="score-board">0m</div>
-    <div id="object-layer"></div>
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
-const PHYSICS = { gravity: 0.81, jumpPower: -18.9, moveSpeed: 7, stageWidth: 393, stageHeight: 852, minGap: 160, maxGap: 190 };
-const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
+const PHYSICS = {
+    gravity: 0.81, jumpPower: -18.9, moveSpeed: 7,
+    stageWidth: 393, stageHeight: 852, motionHold: 12,
+    minGap: 150, maxGap: 190 
+};
+
+const PLATFORM_TYPES = {
+    wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'],
+    block: ['block_1.png', 'block_2.png', 'block_3.png']
+};
 const SIZES = [138, 98, 58];
+const PLATFORM_H = 22;
 
-let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
+let currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
 let riveInstance, keys = {}, currentScale = 1;
-let platforms = [], obstacles = [], motionTimer = 0;
-
-function createObstacle(y) {
-    if (Math.random() < 0.2) {
-        obstacles.push({
-            x: Math.random() * 340,
-            y: y - 80,
-            w: 50, h: 40,
-            speed: (Math.random() * 2 + 1.5) * (Math.random() > 0.5 ? 1 : -1)
-        });
-    }
-}
-
-function createPlatformData(yPos) {
-    const sizeIdx = Math.floor(Math.random() * SIZES.length);
-    // 나무(wood) = 부서짐
-    const isBreakable = Math.random() > 0.3; 
-    createObstacle(yPos);
-    return {
-        x: Math.random() * (PHYSICS.stageWidth - SIZES[sizeIdx]),
-        y: yPos, w: SIZES[sizeIdx], h: 22,
-        img: PLATFORM_TYPES[isBreakable ? 'wood' : 'block'][sizeIdx],
-        isBreakable: isBreakable,
-        durability: isBreakable ? 2 : 999,
-        type: Math.random() > 0.9 ? 'h' : 'normal',
-        speed: Math.random() > 0.5 ? 1.5 : -1.5,
-        isBroken: false
-    };
-}
-
-function init() {
-    score = 0; bgScrollY = 0; platforms = []; obstacles = [];
-    let lastY = 752;
-    for (let i = 0; i < 6; i++) {
-        lastY -= (PHYSICS.minGap + Math.random() * 30);
-        platforms.push(createPlatformData(lastY));
-    }
-    // 시작 발판은 무적(block)
-    platforms.push({ x: 127, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, type: 'normal' });
-}
-
-function loadRive(name) {
-    if (riveInstance) riveInstance.cleanup();
-    riveInstance = new rive.Rive({ src: name, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1' });
-}
+let platforms = [], motionTimer = 0, lastLoadedFile = "";
 
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
-function handleInput(k, d, b) { keys[k] = d; b.className = d ? 'controller ctrl-pressed' : 'controller ctrl-default'; }
+
+function setBtnState(btn, isPressed) {
+    btn.classList.toggle('ctrl-default', !isPressed);
+    btn.classList.toggle('ctrl-pressed', isPressed);
+}
+
+const handleInput = (key, isDown, btn) => { keys[key] = isDown; setBtnState(btn, isDown); };
 btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowLeft', true, btnLeft); });
 btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnLeft); });
 btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnRight); });
 btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnRight); });
 
-init();
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', false, btnRight);
+});
+
+function loadRive(fileName) {
+    if (lastLoadedFile === fileName) return;
+    lastLoadedFile = fileName;
+    if (riveInstance) riveInstance.cleanup();
+    riveInstance = new rive.Rive({
+        src: fileName, canvas: document.getElementById('canvas'),
+        autoplay: true, stateMachines: 'State Machine 1',
+        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
+    });
+}
+
+function createPlatformData(yPos) {
+    const sizeIdx = Math.floor(Math.random() * SIZES.length);
+    const width = SIZES[sizeIdx];
+    const rand = Math.random();
+    
+    // 나무(wood) = 부서짐, 벽돌(block) = 무적
+    const isBreakable = rand > 0.25; 
+    const typeKey = isBreakable ? 'wood' : 'block';
+    let moveType = (rand > 0.9) ? 'h' : (rand > 0.85 ? 'v' : 'normal');
+
+    return {
+        x: Math.random() * (PHYSICS.stageWidth - width),
+        y: yPos, w: width, h: PLATFORM_H,
+        img: PLATFORM_TYPES[typeKey][sizeIdx],
+        isBreakable: isBreakable,
+        durability: isBreakable ? 2 : 999,
+        type: moveType,
+        speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
+        offset: Math.random() * Math.PI * 2,
+        initialY: yPos,
+        isBroken: false
+    };
+}
+
+function initPlatforms() {
+    platforms = [];
+    bgScrollY = 0;
+    let lastY = 752;
+    for (let i = 0; i < 5; i++) {
+        const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+        lastY -= nextGap;
+        platforms.push(createPlatformData(lastY));
+    }
+    platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'block_1.png', isBreakable: false, durability: 999, type: 'normal' }); 
+}
+
 loadRive('kongsik_ingame_air.riv');
+initPlatforms();
 
 function update() {
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    posX = Math.max(-153, Math.min(153, posX));
+    const limit = (PHYSICS.stageWidth / 2) - 43;
+    if (posX < -limit) posX = -limit;
+    if (posX > limit) posX = limit;
 
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // 쥐돌이 이동 및 충돌 판정
-    const charFootY = 752 + currentY;
-    const charCenter = 196 + posX;
-    obstacles.forEach(o => {
-        o.x += o.speed;
-        if (o.x <= 0 || o.x + o.w >= 393) o.speed *= -1;
-        if (Math.abs(charCenter - (o.x + o.w/2)) < 40 && Math.abs(charFootY - 40 - (o.y + o.h/2)) < 40) init();
+    platforms.forEach(p => {
+        if (p.isBroken) return;
+        if (p.type === 'h') {
+            p.x += p.speed;
+            if (p.x <= 0 || p.x + p.w >= PHYSICS.stageWidth) p.speed *= -1;
+        } else if (p.type === 'v') {
+            p.offset += 0.04;
+            p.y = p.initialY + Math.sin(p.offset) * 25;
+        }
     });
 
-    platforms.forEach(p => { if(p.type==='h'){ p.x+=p.speed; if(p.x<=0||p.x+p.w>=393) p.speed*=-1; }});
+    if (motionTimer > 0) {
+        motionTimer--;
+        if (motionTimer < PHYSICS.motionHold - 2) loadRive('kongsik_ingame_air.riv');
+    } else if (velocityY > 2) {
+        loadRive('kongsik_ingame_land.riv');
+    }
 
-    if (velocityY > 0) {
+    const charFootY = 752 + currentY; 
+    const charLeft = (393 / 2) + posX - 25;
+
+    if (velocityY > 0) { 
         platforms.forEach(p => {
-            if (!p.isBroken && Math.abs(charCenter - (p.x + p.w/2)) < p.w/2 + 20 && charFootY >= p.y && charFootY <= p.y + 15) {
+            if (!p.isBroken && charLeft + 50 > p.x && charLeft < p.x + p.w &&
+                charFootY >= p.y && charFootY <= p.y + 15) {
                 loadRive('kongsik_ingame_land.riv');
-                velocityY = PHYSICS.jumpPower; currentY = p.y - 752;
-                if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; }
+                velocityY = PHYSICS.jumpPower; 
+                currentY = p.y - 752; 
+                motionTimer = PHYSICS.motionHold; 
+                
+                if (p.isBreakable) {
+                    p.durability--;
+                    if (p.durability <= 0) p.isBroken = true;
+                }
             }
         });
     }
 
     if (currentY < -250) {
-        const diff = -250 - currentY;
+        let diff = -250 - currentY;
         currentY = -250;
-        score += Math.floor(diff);
         bgScrollY += diff;
         // 배경 이미지 스크롤 동기화
         document.getElementById('game-stage').style.backgroundPositionY = Math.floor(bgScrollY) + 'px';
+
         platforms.forEach(p => {
             p.y += diff;
-            if (p.y > 852) Object.assign(p, createPlatformData(Math.min(...platforms.map(pl=>pl.y)) - 175));
+            if (p.initialY !== undefined) p.initialY += diff;
+            if (p.y > PHYSICS.stageHeight) {
+                const highestY = Math.min(...platforms.map(plat => plat.y));
+                const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+                Object.assign(p, createPlatformData(highestY - nextGap));
+                p.isBroken = false; 
+            }
         });
-        obstacles.forEach(o => o.y += diff);
-        obstacles = obstacles.filter(o => o.y < 900);
     }
 
-    if (charFootY > 950) init();
-
-    const layer = document.getElementById('object-layer');
-    layer.innerHTML = '';
-    
-    platforms.forEach(p => {
-        if (p.isBroken) return;
-        const d = document.createElement('div'); d.className = 'platform';
-        d.style.left = Math.floor(p.x)+'px'; d.style.top = Math.floor(p.y)+'px';
-        d.style.width = p.w+'px'; d.style.height = '22px';
-        d.style.backgroundImage = `url('${p.img}')`;
-        if (p.isBreakable && p.durability === 1) d.style.opacity = '0.7';
-        layer.appendChild(d);
-    });
-
-    obstacles.forEach(o => {
-        const d = document.createElement('div'); d.className = 'obstacle';
-        d.style.left = Math.floor(o.x)+'px'; d.style.top = Math.floor(o.y)+'px';
-        d.style.width = o.w+'px'; d.style.height = o.h+'px';
-        d.style.backgroundImage = `url('mouse.png')`;
-        layer.appendChild(d);
-    });
+    if (charFootY > 950) {
+        currentY = 0; velocityY = PHYSICS.jumpPower; 
+        initPlatforms();
+        loadRive('kongsik_ingame_air.riv');
+    }
 
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
-    document.getElementById('score-board').innerText = score + "m";
-
+    renderPlatforms();
     requestAnimationFrame(update);
+}
+
+function renderPlatforms() {
+    const stage = document.getElementById('game-stage');
+    const existing = document.querySelectorAll('.platform');
+    existing.forEach(el => el.remove());
+    platforms.forEach(p => {
+        if (p.isBroken) return;
+        const div = document.createElement('div');
+        div.className = 'platform';
+        div.style.left = Math.floor(p.x) + 'px'; 
+        div.style.top = Math.floor(p.y) + 'px';
+        div.style.width = p.w + 'px'; div.style.height = p.h + 'px';
+        div.style.backgroundImage = `url('${p.img}')`;
+        if (p.isBreakable && p.durability === 1) div.style.opacity = '0.7';
+        stage.appendChild(div);
+    });
 }
 update();
 </script>
