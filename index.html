@@ -77,9 +77,8 @@
 </div>
 
 <script>
-// 점프 높이 230px 보정 (jumpPower: -19.3)
-const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 };
-const SIZES = [138, 98, 58];
+const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
+const SIZES = [138, 98, 58]; 
 let score = 0, cloverCount = 0, currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
 let riveInstance, mainRiveInstance, keys = {}, currentScale = 1, platforms = [], lastLoadedFile = "", isGameRunning = false, mouseAnimFrame = 0;
 
@@ -97,15 +96,14 @@ function loadRive(f) { if (lastLoadedFile === f) return; lastLoadedFile = f; if 
 
 function createPlatformData(y) {
     let distM = Math.floor(score * 0.01), rand = Math.random();
-    let isBreakable = (rand < 0.15 + (Math.min(distM, 500) / 500) * 0.75);
     let sIdx = distM < 100 ? Math.floor(rand * 2) : Math.floor(rand * 3);
     const width = SIZES[sIdx];
-    let canHaveMouse = (width >= 98) && (rand < 0.2);
+    let canHaveMouse = (width >= 98) && (rand < 0.2); 
     let itemType = (!canHaveMouse && rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
-    return { x: Math.random() * (393 - width), y, baseY: y, w: width, h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, item: itemType, itemCollected: false, type: 'normal', speed: 1.6, verticalRange: 40, vPhase: Math.random() * 6.28, isBroken: false, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 1 };
+    return { x: Math.random() * (393 - width), y, baseY: y, w: width, h: 22, img: 'block_1.png', item: itemType, itemCollected: false, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 1, isBroken: false };
 }
 
-function initPlatforms() { score = 0; currentY = 0; velocityY = 0; posX = 0; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; platforms = []; let lastY = 752; for (let i = 0; i < 7; i++) { lastY -= (110 + Math.random() * 100); platforms.push(createPlatformData(lastY)); } platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, type: 'normal' }); }
+function initPlatforms() { score = 0; currentY = 0; velocityY = 0; posX = 0; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; platforms = []; let lastY = 752; for (let i = 0; i < 7; i++) { lastY -= (110 + Math.random() * 80); platforms.push(createPlatformData(lastY)); } platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, type: 'normal' }); }
 
 function update() {
     if (!isGameRunning) { requestAnimationFrame(update); return; }
@@ -118,11 +116,17 @@ function update() {
         if (p.hasMouse && !p.isBroken) {
             p.mouseX += p.mouseDir * p.mouseSpeed; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) p.mouseDir *= -1;
             let mx = p.x + p.mouseX, my = p.y - 35;
-            if (charLeft + 30 > mx + 30 && charLeft + 20 < mx + 40 && charFootY > my && charFootY < my + 20) {
-                velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50);
+            // 가로 10px, 세로 20px 히트박스 판정
+            if (charLeft + 30 > mx + 30 && charLeft + 20 < mx + 40 && charFootY > my && charFootY < my + 20) { 
+                velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
             }
         }
+
         if (!p.isBroken) {
+            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { 
+                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752;
+                setTimeout(() => loadRive('kongsik_ingame_air.riv'), 200);
+            }
             if (p.item && !p.itemCollected) {
                 let ix = p.x + p.w/2 - 25, iy = p.y - 55;
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
@@ -131,23 +135,19 @@ function update() {
                     else if (p.item === 'gold') velocityY = PHYSICS.superJumpPower;
                 }
             }
-            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
-                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; if (p.isBreakable) p.isBroken = true;
-                setTimeout(() => loadRive('kongsik_ingame_air.riv'), 200);
-            }
         }
     });
 
-    if (currentY < -250) {
-        let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => {
-            p.y += d; p.baseY += d;
-            if (p.y > 852) {
-                // 발판 재생성 시 쥐돌이 상태를 포함한 데이터를 완전히 갱신하여 추락(제거) 처리
-                Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (110 + Math.random() * 100)));
+    if (currentY < -250) { 
+        let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; 
+        platforms.forEach(p => { 
+            p.y += d; p.baseY += d; 
+            if (p.y > 852) { 
+                // 발판 재생성 시 쥐돌이 상태를 완전히 초기화하여 공중에 남지 않게 함
+                Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (110 + Math.random() * 80))); 
                 p.isBroken = false;
             } 
-        });
+        }); 
     }
     if (752 + currentY > 1050) showResult();
     canvasCont.style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
@@ -158,7 +158,7 @@ function update() {
             const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}');`; document.getElementById('game-stage').appendChild(d);
             if (p.item && !p.itemCollected) { const it = document.createElement('div'); it.className = 'game-item'; it.style.backgroundImage = `url('item_${p.item}.png')`; it.style.left = (p.x + p.w/2 - 25) + 'px'; it.style.top = (p.y - 55) + 'px'; document.getElementById('game-stage').appendChild(it); }
         }
-        if (p.hasMouse) { const m = document.createElement('div'); m.className = 'mouse-enemy'; m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 52}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`; document.getElementById('game-stage').appendChild(m); }
+        if (p.hasMouse) { const m = document.createElement('div'); m.className = 'mouse-enemy'; m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 52}px;background-image:url('mouse_walk1.png'); transform: scaleX(${p.mouseDir})`; document.getElementById('game-stage').appendChild(m); }
     });
     requestAnimationFrame(update);
 }
