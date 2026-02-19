@@ -2,43 +2,54 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 슈퍼 점프 강화 패치</title>
+    <title>콩콩춘식 - UI 및 밸런스 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        
         #game-stage { 
             position: relative; width: 393px; height: 852px; 
             background-image: url('bg_ingame.png'); background-repeat: repeat-y;
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
+
+        /* --- 네비게이션 및 UI 상단 배치 --- */
+        #nav-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 50px;
+            display: flex; align-items: center; padding: 0 20px; box-sizing: border-box; z-index: 110;
+        }
+        #btn-close { width: 24px; height: 24px; cursor: pointer; }
+
+        #score-board { position: absolute; top: 60px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
+        #rate-board { position: absolute; top: 60px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
+
+        /* --- 캐릭터 및 효과 --- */
         #canvas-container {
             position: absolute; width: 86px !important; height: 138px !important;
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
 
-        /* ★ 번쩍번쩍 효과 애니메이션 */
+        /* 슈퍼 점프 번쩍임 완화 (투명도 최소값 0.7로 상향) */
         @keyframes flicker {
-            0% { opacity: 1; filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)) brightness(1.5); }
-            50% { opacity: 0.4; filter: drop-shadow(0 0 40px rgba(255, 255, 255, 1)) brightness(2); }
-            100% { opacity: 1; filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)) brightness(1.5); }
+            0% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7)) brightness(1.2); }
+            50% { opacity: 0.7; filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.8)) brightness(1.4); }
+            100% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.7)) brightness(1.2); }
         }
-
-        /* 황금 슈퍼 점프 글로우 + 번쩍임 효과 */
-        .gold-glow { 
-            animation: flicker 0.1s infinite; /* 0.1초 간격으로 무한 반복 */
-        }
+        .gold-glow { animation: flicker 0.15s infinite; }
 
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         
-        /* ★ 아이템 사이즈 1.5배 (40px -> 60px) */
-        .game-item { position: absolute; width: 60px; height: 60px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
+        /* 아이템 50px 축소 */
+        .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         
-        /* ★ 픽업 이펙트 사이즈 1.5배 (20px -> 30px) */
-        .pickup-effect { position: absolute; font-weight: bold; color: #4CAF50; font-size: 30px; z-index: 20; pointer-events: none; transition: transform 0.8s, opacity 0.8s; }
+        /* 픽업 이펙트 23px 축소 */
+        .pickup-effect { position: absolute; font-weight: bold; color: #4CAF50; font-size: 23px; z-index: 20; pointer-events: none; transition: transform 0.8s, opacity 0.8s; }
         
         .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
+        
+        /* 컨트롤러 */
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
             z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -47,15 +58,18 @@
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
-        #score-board { position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
-        #rate-board { position: absolute; top: 20px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
+    <div id="nav-bar">
+        <img src="Navigation.png" id="btn-close" alt="close" onclick="location.reload();">
+    </div>
+
     <div id="score-board">0m</div>
     <div id="rate-board">Rate: +0.00%</div>
+
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
@@ -70,7 +84,7 @@ let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverRate = 0, bgScrollY 
 let isSuperJumping = false;
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], particles = [], motionTimer = 0, lastLoadedFile = "";
-let startTime = Date.now(), mouseAnimFrame = 0;
+let mouseAnimFrame = 0;
 
 const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), 
       scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board'),
@@ -163,7 +177,7 @@ function initPlatforms() {
     bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
     canvasCont.classList.remove('gold-glow');
     document.getElementById('game-stage').style.backgroundPositionY = '0px';
-    startTime = Date.now(); platforms = []; particles = [];
+    platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
         lastY -= (100 + Math.random() * 110); 
@@ -202,24 +216,24 @@ function update() {
                 p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange;
             }
 
-            // ★ 아이템 충돌 판정 (확대된 사이즈 60px에 맞춤)
+            // 아이템 충돌 판정 (50px에 맞춤)
             if (p.item && !p.itemCollected) {
-                let ix = p.x + p.w/2 - 30, iy = p.y - 65;
-                if (charLeft + 45 > ix && charLeft + 5 < ix + 60 && charFootY > iy && charFootY < iy + 60) {
+                let ix = p.x + p.w/2 - 25, iy = p.y - 55;
+                if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
                         cloverRate += 0.1;
                         rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
                         let eff = document.createElement('div');
                         eff.className = 'pickup-effect'; eff.innerText = '+0.1%';
-                        eff.style.left = (ix + 30) + 'px'; eff.style.top = iy + 'px';
+                        eff.style.left = (ix + 25) + 'px'; eff.style.top = iy + 'px';
                         document.getElementById('game-stage').appendChild(eff);
                         setTimeout(() => { eff.style.transform = 'translateY(-50px)'; eff.style.opacity = '0'; }, 10);
                         setTimeout(() => eff.remove(), 800);
                     } else if (p.item === 'gold') {
                         isSuperJumping = true;
                         velocityY = PHYSICS.superJumpPower; 
-                        canvasCont.classList.add('gold-glow'); // ★ 여기에 번쩍임 애니메이션 포함됨
+                        canvasCont.classList.add('gold-glow');
                         loadRive('kongsik_ingame_air.riv');
                     }
                 }
@@ -301,9 +315,8 @@ function update() {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'game-item';
                 itemDiv.style.backgroundImage = `url('item_${p.item}.png')`;
-                // ★ 확대된 사이즈에 맞춰 중앙 정렬 위치 수정
-                itemDiv.style.left = (p.x + p.w/2 - 30) + 'px';
-                itemDiv.style.top = (p.y - 65) + 'px';
+                itemDiv.style.left = (p.x + p.w/2 - 25) + 'px';
+                itemDiv.style.top = (p.y - 55) + 'px';
                 stage.appendChild(itemDiv);
             }
         }
