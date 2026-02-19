@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 최종 통합본</title>
+    <title>콩콩춘식 - 모션 보정 통합본</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -11,12 +11,10 @@
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         #game-stage { position: relative; width: 393px; height: 852px; background-color: #FFFDF5; overflow: hidden; }
 
-        /* 메인 화면 */
         #main-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_main.png'); background-size: 100% 100%; z-index: 2000; display: flex; flex-direction: column; align-items: center; }
         #main-rive-container { position: absolute; top: 0; left: 0; width: 393px; height: 852px; pointer-events: none; }
         #btn-start { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 345px; cursor: pointer; z-index: 2100; transition: transform 0.1s; }
 
-        /* 인게임 UI */
         .ingame-ui { display: none; }
         #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_ingame.png'); background-repeat: repeat-y; background-size: 100% auto; z-index: 1; }
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
@@ -24,24 +22,20 @@
         .header-ui-container { position: absolute; top: 75px; left: 0; width: 100%; height: 120px; z-index: 1000; pointer-events: none; }
         #score-board { position: absolute; top: 0; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
         
-        /* 클로버 UI 정밀 고정 */
         .rate-capsule { position: absolute; top: -1px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; box-sizing: border-box; overflow: visible; }
         .ui-icon { position: absolute; top: 9px; left: 12px; width: 25px; height: 25px; object-fit: contain; }
         #rate-board { position: absolute; top: 13px; left: 45px; font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; line-height: 1; transform: translateY(-1px); white-space: nowrap; }
 
-        /* 게임 요소 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
-        .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; z-index: 7; }
         .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
 
-        /* 결과 화면 팝업 */
         #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.4); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; }
         .result-popup { width: 345px; background: white; border-radius: 40px; padding: 40px 20px 30px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
         .res-final-rate { font-size: 64px; font-weight: 900; color: #E76A6A; margin-bottom: 25px; font-family: 'Arial', sans-serif; }
@@ -78,13 +72,34 @@
 </div>
 
 <script>
-// 점프 230px 보정 (-19.3)
 const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
 const SIZES = [138, 98, 58]; 
-let score = 0, cloverCount = 0, currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
-let riveInstance, mainRiveInstance, keys = {}, currentScale = 1, platforms = [], isGameRunning = false, mouseAnimFrame = 0;
+let score = 0, currentY = 0, velocityY = 0, posX = 0, platforms = [], isGameRunning = false, lastLoadedFile = "";
+let riveInstance, mainRiveInstance, mouseAnimFrame = 0;
 
-function loadMainRive() { mainRiveInstance = new rive.Rive({ src: 'kongsik.riv', canvas: document.getElementById('main-rive-canvas'), autoplay: true }); }
+function loadMainRive() { 
+    mainRiveInstance = new rive.Rive({ 
+        src: 'kongsik.riv', 
+        canvas: document.getElementById('main-rive-canvas'), 
+        autoplay: true,
+        stateMachines: 'State Machine 1',
+        onLoad: () => { mainRiveInstance.resizeDrawingSurfaceToCanvas(); }
+    }); 
+}
+
+function loadRive(f) { 
+    if (lastLoadedFile === f) return;
+    lastLoadedFile = f;
+    if (riveInstance) riveInstance.cleanup();
+    riveInstance = new rive.Rive({ 
+        src: f, 
+        canvas: document.getElementById('canvas'), 
+        autoplay: true,
+        stateMachines: 'State Machine 1',
+        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
+    }); 
+}
+
 function startGame() { 
     document.getElementById('main-screen').style.display = 'none'; 
     document.getElementById('result-screen').style.display = 'none';
@@ -93,17 +108,14 @@ function startGame() {
     initPlatforms(); 
     loadRive('kongsik_ingame_air.riv'); 
 }
-function loadRive(f) { riveInstance = new rive.Rive({ src: f, canvas: document.getElementById('canvas'), autoplay: true }); }
 
 function createPlatformData(y) {
     let rand = Math.random();
-    let sIdx = Math.floor(Math.random() * 3);
-    const width = SIZES[sIdx];
+    const width = SIZES[Math.floor(Math.random() * 3)];
     let canHaveMouse = (width >= 98) && (rand < 0.2); 
     return { x: Math.random() * (393 - width), y, baseY: y, w: width, h: 22, img: 'block_1.png', hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 1 };
 }
 
-// 발판 간격 200px 미만 (110~190)
 function initPlatforms() { 
     score = 0; currentY = 0; velocityY = 0; posX = 0; platforms = []; 
     let lastY = 752; 
@@ -120,13 +132,15 @@ function update() {
         if (p.hasMouse) {
             p.mouseX += p.mouseDir * 1; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) p.mouseDir *= -1;
             let mx = p.x + p.mouseX, my = p.y - 35;
-            // 쥐돌이 히트박스: 가로 10px, 세로 20px
             if (charLeft + 30 > mx + 30 && charLeft + 20 < mx + 40 && charFootY > my && charFootY < my + 20) { 
                 velocityY = -12; 
             }
         }
         if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { 
-            velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
+            loadRive('kongsik_ingame_land.riv');
+            velocityY = PHYSICS.jumpPower; 
+            currentY = p.y - 752; 
+            setTimeout(() => { if(isGameRunning) loadRive('kongsik_ingame_air.riv'); }, 200);
         }
     });
 
