@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 빌런 추락 패치</title>
+    <title>콩콩춘식 - 랜덤 맵 & 빌런 포즈 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -85,19 +85,16 @@ function createPlatformData(yPos) {
     const playTime = (Date.now() - startTime) / 1000;
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
-    
-    // ★ 나무 발판(!isBreakable 조건 제거)에도 쥐돌이 출연 가능
     let canHaveMouse = (width === 138) && (rand < 0.2); 
 
     return {
         x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
-        isBreakable: isBreakable, durability: isBreakable ? 2 : 999,
+        isBreakable: isBreakable, 
+        durability: isBreakable ? 1 : 999, // ★ 나무 발판 내구도를 1로 수정
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
-        mouseWaitTimer: 0,
-        mouseYOffset: -52, // 쥐돌이 Y축 오프셋
-        mouseVY: 0, // 쥐돌이 추락 속도
+        mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
         type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false, isTouched: false
     };
 }
@@ -119,7 +116,8 @@ function initPlatforms() {
     startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
-        lastY -= (160 + Math.random() * 40);
+        // ★ 초기 발판 간격 랜덤성 강화 (130px~250px)
+        lastY -= (130 + Math.random() * 120); 
         platforms.push(createPlatformData(lastY));
     }
     platforms.push({ x: 393/2-69, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false });
@@ -143,7 +141,6 @@ function update() {
     platforms.forEach(p => {
         if (p.hasMouse) {
             if (!p.isBroken) {
-                // 발판이 멀쩡할 때: 정상 이동 AI
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
                 else {
                     p.mouseX += p.mouseDir * p.mouseSpeed;
@@ -154,15 +151,13 @@ function update() {
                         p.mouseWaitTimer = 20 + Math.floor(Math.random() * 40); 
                     }
                 }
-                // 충돌 판정
                 let mx = p.x + p.mouseX, my = p.y - 35;
                 if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
                     velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
                 }
             } else {
-                // 발판이 부서졌을 때: 쥐돌이 추락 로직
-                p.mouseVY += 0.6; // 추락 중력 적용
-                p.mouseYOffset += p.mouseVY; // 위치 업데이트
+                p.mouseVY += 0.6;
+                p.mouseYOffset += p.mouseVY;
             }
         }
 
@@ -195,7 +190,12 @@ function update() {
         bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
         platforms.forEach(p => {
             p.y += diff;
-            if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - 170)); p.isBroken = false; }
+            if (p.y > 852) { 
+                // ★ 생성되는 발판 간격 랜덤성 강화 (140px~240px)
+                let randomGap = 140 + Math.random() * 100;
+                Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); 
+                p.isBroken = false; 
+            }
         });
         particles.forEach(part => part.y += diff);
     }
@@ -225,8 +225,8 @@ function update() {
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            // 추락 시에는 mouse_walk 애니메이션 고정
-            const mouseImg = (p.mouseWaitTimer > 0 && !p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
+            // ★ 추락 시(isBroken) 항상 서 있는 모습(mouse2.png)으로 출력
+            const mouseImg = (p.mouseWaitTimer > 0 || p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
             m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
         }
