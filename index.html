@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>춘식 점프 물리 로직 - 최종 완성본</title>
+    <title>춘식 점프 물리 로직</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        /* 요청하신 393x852 사이즈 고정 */
+        /* 393x852 사이즈 고정 */
         #game-stage { 
             position: relative; 
             width: 393px; 
             height: 852px; 
-            background: #FFD400; /* 춘식이 컬러 */
+            background: #fff; 
             overflow: hidden; 
         }
         /* 캐릭터 사이즈 86x138 고정 */
@@ -19,20 +19,19 @@
             position: absolute;
             width: 86px;
             height: 138px;
-            bottom: 100px;
+            bottom: 100px; 
             left: 50%;
             margin-left: -43px; 
             z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
-        /* 발판 디자인 */
+        /* 발판 스타일 */
         .platform {
             position: absolute;
             width: 80px;
             height: 15px;
             background: #5c3e34;
             border-radius: 5px;
-            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -45,51 +44,53 @@
 </div>
 
 <script>
-// --- 물리 파라미터 (밟는 맛 최적화 수치) ---
+// --- 물리 파라미터 ---
 const PHYSICS = {
-    gravity: 1.1,       // 중력 강화 (더 묵직하게)
-    jumpPower: -24,     // 탄성 강화 (더 높게)
-    moveSpeed: 8,
+    gravity: 0.9,       
+    jumpPower: -21,     
+    groundY: 0,         
+    moveSpeed: 6,
     stageWidth: 393,
-    stageHeight: 852,
-    motionHold: 15      // 0.25초 정도 도약 모션 유지
+    motionHold: 12      // 0.2초 유지
 };
 
-let currentY = 0;       
+let currentY = 0;
 let velocityY = 0;
 let posX = 0;           
 let isJumping = true;   
 let riveInstance;
 let keys = {};          
 let currentScale = 1;   
-let motionTimer = 0;    
-let platforms = [];     
-let currentFile = "";
 
-// Rive 초기화
+// 발판 및 모션 관리 변수
+let platforms = [];
+let motionTimer = 0;
+let lastLoadedFile = "";
+
+// Rive 초기화 (중복 로드 방지 가드 포함)
 function loadRive(fileName) {
-    if (currentFile === fileName) return;
-    currentFile = fileName;
+    if (lastLoadedFile === fileName) return;
+    lastLoadedFile = fileName;
+
     if (riveInstance) riveInstance.cleanup();
     riveInstance = new rive.Rive({
         src: fileName,
         canvas: document.getElementById('canvas'),
         autoplay: true,
         stateMachines: 'State Machine 1',
-        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
+        onLoad: () => {
+            riveInstance.resizeDrawingSurfaceToCanvas();
+        }
     });
 }
 
-// 발판 초기화
+// 발판 생성
 function initPlatforms() {
     for (let i = 0; i < 8; i++) {
-        platforms.push({
-            x: Math.random() * (PHYSICS.stageWidth - 80),
-            y: i * 110 + 50 
-        });
+        platforms.push({ x: Math.random() * (393 - 80), y: i * 110 + 50 });
     }
-    // 시작 발판
-    platforms.push({ x: PHYSICS.stageWidth / 2 - 40, y: 720 });
+    // 시작 위치 발판
+    platforms.push({ x: 393/2 - 40, y: 720 });
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -107,7 +108,7 @@ function update() {
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // 3. 모션 유지 로직 (0.2초 룰)
+    // 3. 모션 상태 제어 (0.2초 유지 로직)
     if (motionTimer > 0) {
         motionTimer--;
         loadRive('kongsik_ingame_air.riv');
@@ -115,46 +116,71 @@ function update() {
         loadRive('kongsik_ingame_land.riv');
     }
 
-    // 4. 세밀한 히트박스 (밟는 느낌 강조)
-    if (velocityY > 0) {
+    // 4. [정밀 설계] 하단 히트박스 충돌 판정
+    if (velocityY > 0) { // 하강 시에만 판정
         platforms.forEach(p => {
-            // 발바닥 판정선 (이미지 끝에서 5px 정도 파묻히도록 설정)
-            const charFoot = (852 - 100 - currentY);
-            const charLeft = (PHYSICS.stageWidth / 2) + posX - 25;
-            const charRight = (PHYSICS.stageWidth / 2) + posX + 25;
+            // 캐릭터 발바닥의 정확한 Y 좌표 (Container의 bottom 라인)
+            const charFootY = (852 - 100 - currentY); 
+            // 캐릭터의 중앙 기준 가로 판정 영역 (타이트하게 설정)
+            const charLeft = (393 / 2) + posX - 25; 
 
-            // 판정 범위: 발판 윗면(p.y)에서 아래로 15px 사이를 지날 때
-            if (charRight > p.x && charLeft < p.x + 80 &&
-                charFoot >= p.y + 5 && charFoot <= p.y + 20) {
+            // 발판의 윗면과 캐릭터 발바닥이 교차하는 순간 판정
+            if (charLeft + 50 > p.x && charLeft < p.x + 80 &&
+                charFootY >= p.y && charFootY <= p.y + 12) {
                 
                 velocityY = PHYSICS.jumpPower; 
-                currentY -= 8; // 밟는 순간 살짝 위로 튕겨주는 시각적 반동
                 motionTimer = PHYSICS.motionHold; 
                 loadRive('kongsik_ingame_air.riv');
             }
         });
     }
 
-    // 5. 무한 스크롤 카메라
+    // 5. 무한 스크롤 (카메라)
     if (currentY < -200) {
         let diff = -200 - currentY;
         currentY = -200;
         platforms.forEach(p => {
             p.y += diff;
-            if (p.y > PHYSICS.stageHeight) {
+            if (p.y > 852) {
                 p.y = 0;
-                p.x = Math.random() * (PHYSICS.stageWidth - 80);
+                p.x = Math.random() * (393 - 80);
             }
         });
     }
 
-    // 6. 추락 리셋
+    // 6. 추락 시 리셋
     if (currentY > 300) {
         currentY = 0;
         velocityY = PHYSICS.jumpPower;
         motionTimer = PHYSICS.motionHold;
     }
 
-    // 7. 위치 업데이트
+    // 7. 결과 출력
     document.getElementById('canvas-container').style.transform = 
-        `translate(${
+        `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
+
+    renderPlatforms();
+    requestAnimationFrame(update);
+}
+
+function renderPlatforms() {
+    const stage = document.getElementById('game-stage');
+    const existing = document.querySelectorAll('.platform');
+    existing.forEach(el => el.remove());
+    platforms.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'platform';
+        div.style.left = p.x + 'px';
+        div.style.top = p.y + 'px';
+        stage.appendChild(div);
+    });
+}
+
+window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+update();
+</script>
+
+</body>
+</html>
