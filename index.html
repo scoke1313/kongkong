@@ -1,167 +1,90 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 캐릭터 고정 완료</title>
+  <meta charset="UTF-8">
+  <title>춘식이 모션 전환 테스트</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
-    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
-    #game-container{position:relative;width:100%;max-width:480px;height:100%;max-height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
-    #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
-    
-    /* 필승 비법: 춘식이 전용 캔버스 고정 */
-    #chunCanvas { 
-      position: absolute; 
-      z-index: 2; 
-      width: 86px !important; 
-      height: 138px !important; 
-      pointer-events: none; 
-      display: none; /* 로딩 전 숨김 */
-    }
-    
-    #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
-    .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
-    .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
-    .hidden{display:none!important}
+    body { margin: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #eee; font-family: sans-serif; }
+    /* 86x138 필승 규격 */
+    #chunCanvas { width: 86px !important; height: 138px !important; background: white; border: 2px solid #FEE500; }
+    .controls { margin-top: 20px; text-align: center; }
   </style>
 </head>
 <body>
-<div id="game-container">
-  <div id="hud">금리: <span id="rate">2.0</span>%</div>
-  <canvas id="bgCanvas"></canvas>
+
   <canvas id="chunCanvas"></canvas>
-  <div id="start" class="overlay">
-    <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
-    <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">캐릭터 로딩 중...</div>
-    <button class="btn hidden" id="btnStart">게임 시작</button>
+  
+  <div class="controls">
+    <p id="status">로딩 중...</p>
+    <p>화면을 클릭하거나 <b>스페이스바</b>를 눌러보세요!</p>
   </div>
-</div>
 
-<script>
-(() => {
-  const bgCanvas = document.getElementById('bgCanvas'), bgCtx = bgCanvas.getContext('2d');
-  const chunCanvas = document.getElementById('chunCanvas');
-  const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
+  <script>
+    const canvas = document.getElementById('chunCanvas');
+    const statusText = document.getElementById('status');
+    let landRive, airRive, currentRive;
+    let isAir = false;
 
-  function resize(){ 
-    bgCanvas.width = bgCanvas.parentElement.clientWidth; 
-    bgCanvas.height = bgCanvas.parentElement.clientHeight; 
-  }
-  window.addEventListener('resize', resize); resize();
+    // 1. 개별 로드 (사라짐 방지 필살기)
+    function init() {
+      landRive = new rive.Rive({
+        src: 'kongsik_ingame_land.riv',
+        canvas: canvas,
+        artboard: 'Artboard',
+        stateMachines: 'State Machine 1',
+        autoplay: false,
+        onLoad: () => { checkReady(); }
+      });
 
-  let landRive = null, airRive = null, currentRive = null;
-  let landReady = false, airReady = false;
+      airRive = new rive.Rive({
+        src: 'kongsik_ingame_air.riv',
+        canvas: canvas,
+        artboard: 'Artboard',
+        stateMachines: 'State Machine 1',
+        autoplay: false,
+        onLoad: () => { checkReady(); }
+      });
+    }
 
-  // 1. 사라짐 방지: 각 인스턴스를 독립적으로 관리
-  function initCharacter() {
-    landRive = new rive.Rive({
-      src: 'kongsik_ingame_land.riv',
-      canvas: chunCanvas,
-      artboard: 'Artboard',
-      stateMachines: 'State Machine 1',
-      autoplay: false,
-      onLoad: () => { 
+    let loaded = 0;
+    function checkReady() {
+      loaded++;
+      if(loaded === 2) {
+        statusText.innerText = "준비 완료! 현재: 착지(LAND) 모션";
         landRive.resizeDrawingSurfaceToCanvas();
-        landReady = true; checkStart(); 
-      }
-    });
-
-    airRive = new rive.Rive({
-      src: 'kongsik_ingame_air.riv',
-      canvas: chunCanvas,
-      artboard: 'Artboard',
-      stateMachines: 'State Machine 1',
-      autoplay: false,
-      onLoad: () => { 
         airRive.resizeDrawingSurfaceToCanvas();
-        airReady = true; checkStart(); 
-      }
-    });
-  }
-
-  function checkStart() {
-    if(landReady && airReady) {
-      status.innerText = "준비 완료! 🐯";
-      btnStart.classList.remove('hidden');
-    }
-  }
-  initCharacter();
-
-  let jumpPower = -12, gravity = 0.75; 
-  let p = { x: 0, y: 0, vx: 0, vy: jumpPower }, isRunning = false, lastDir = 1;
-  const keys = { left: false, right: false };
-  let platforms = [];
-
-  window.addEventListener('keydown', e => { 
-    if(e.code==='ArrowLeft'){ keys.left=true; lastDir=1; } 
-    if(e.code==='ArrowRight'){ keys.right=true; lastDir=-1; } 
-  });
-  window.addEventListener('keyup', e => { if(e.code==='ArrowLeft')keys.left=false; if(e.code==='ArrowRight')keys.right=false; });
-
-  function reset() {
-    p.x = bgCanvas.width / 2; p.y = bgCanvas.height - 200; p.vx = 0; p.vy = jumpPower;
-    platforms = [];
-    for(let i=0; i<8; i++) platforms.push({ x: Math.random()*(bgCanvas.width-120), y: bgCanvas.height-70-i*92 });
-  }
-
-  function loop(now) {
-    if(!isRunning) return;
-
-    if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
-    p.x += p.vx; p.vy += gravity; p.y += p.vy;
-    if(p.x < -30) p.x = bgCanvas.width + 30; if(p.x > bgCanvas.width + 30) p.x = -30;
-
-    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-    bgCtx.fillStyle = "#9CCC65"; 
-
-    // --- 2. 사라짐 방지 핵심 로직: 전환 시 투명화 차단 ---
-    if (p.vy < 0) { // 상승 중 (AIR 모션)
-      if (currentRive !== airRive) {
-        currentRive = airRive;
-        currentRive.play(); 
-      }
-    }
-
-    platforms.forEach(pl => {
-      bgCtx.fillRect(pl.x, pl.y, 120, 15);
-      if(p.vy > 0 && p.x > pl.x-15 && p.x < pl.x+135 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) {
-        p.vy = jumpPower;
-        // 발판 충돌 시 (LAND 모션)
         currentRive = landRive;
-        currentRive.scrub("State Machine 1", 0); // 프레임 초기화
-        currentRive.play("State Machine 1");
+        currentRive.play(); // 첫 모션 재생
       }
-    });
-
-    if(p.y < bgCanvas.height/2 && p.vy < 0) {
-      let dy = -p.vy; p.y += dy;
-      platforms.forEach(pl => { pl.y += dy; if(pl.y > bgCanvas.height) { pl.y -= 92*8; pl.x = Math.random()*(bgCanvas.width-120); } });
     }
 
-    // 3. 렌더링 동기화
-    if (currentRive) {
-      chunCanvas.style.display = 'block';
-      chunCanvas.style.left = (p.x - 43) + 'px';
-      chunCanvas.style.top = (p.y - 69) + 'px'; 
-      chunCanvas.style.transform = `scaleX(${lastDir})`; 
-    }
-    
-    if(p.y > bgCanvas.height + 150) reset();
-    requestAnimationFrame(loop);
-  }
+    // 2. 모션 교체 함수 (사용자님의 점프 로직에 들어갈 핵심)
+    function toggleMotion() {
+      if(loaded < 2) return;
 
-  btnStart.onclick = () => { 
-    document.getElementById('start').classList.add('hidden'); 
-    isRunning = true; 
-    reset(); 
-    // 시작할 때 서피스 크기 강제 재확정 (사라짐 방지)
-    landRive.resizeDrawingSurfaceToCanvas();
-    airRive.resizeDrawingSurfaceToCanvas();
-    loop(performance.now()); 
-  };
-})();
-</script>
+      isAir = !isAir;
+      
+      // 이전 모션 멈춤 (pause 사용으로 캐릭터 증발 방지)
+      if (currentRive) currentRive.pause();
+
+      if (isAir) {
+        currentRive = airRive;
+        statusText.innerText = "현재: 공중(AIR) 모션";
+      } else {
+        currentRive = landRive;
+        currentRive.scrub("State Machine 1", 0); // 처음부터 한 번만 재생
+        statusText.innerText = "현재: 착지(LAND) 모션";
+      }
+
+      currentRive.play();
+    }
+
+    // 입력 이벤트 등록
+    window.addEventListener('mousedown', toggleMotion);
+    window.addEventListener('keydown', (e) => { if(e.code === 'Space') toggleMotion(); });
+
+    init();
+  </script>
 </body>
 </html>
