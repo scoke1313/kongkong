@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 쥐돌이의 역습 (워킹 패치)</title>
+    <title>콩콩춘식 - 쥐돌이 진정 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -17,7 +17,6 @@
         }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
-        /* 쥐돌이 사이즈업 (60x45) */
         .mouse-enemy { position: absolute; width: 60px; height: 45px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
@@ -68,9 +67,7 @@ window.addEventListener('keyup', (e) => {
 const attachControl = (btn, key) => {
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
     btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); });
-    btn.addEventListener('mousedown', (e) => { e.preventDefault(); setInput(key, true, btn); });
 };
-window.addEventListener('mouseup', () => { setInput('ArrowLeft', false, btnLeft); setInput('ArrowRight', false, btnRight); });
 attachControl(btnLeft, 'ArrowLeft'); attachControl(btnRight, 'ArrowRight');
 
 function loadRive(fileName) {
@@ -88,13 +85,14 @@ function createPlatformData(yPos) {
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
     
-    // 쥐돌이 등장 확률 및 워킹 데이터
+    // 쥐돌이 등장 확률 (평균적인 속도로 설정)
     let hasMouse = !isBreakable && rand < 0.2; 
     return {
         x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
         isBreakable: isBreakable, durability: isBreakable ? 2 : 999,
         hasMouse: hasMouse, mouseX: Math.random() * (width - 60), mouseDir: Math.random() > 0.5 ? 1 : -1,
+        mouseSpeed: 0.8 + Math.random() * 0.7, // 쥐돌이 속도 대폭 하향
         type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false
     };
 }
@@ -131,28 +129,28 @@ function update() {
         if (p.isBroken) return;
         if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
         
-        // 쥐돌이 워킹 로직 추가
+        // 쥐돌이 움직임 진정 패치
         if (p.hasMouse) {
-            p.mouseX += p.mouseDir * 1.5;
+            p.mouseX += p.mouseDir * p.mouseSpeed;
             if (p.mouseX <= 0 || p.mouseX + 60 >= p.w) p.mouseDir *= -1;
             
             let mx = p.x + p.mouseX, my = p.y - 35;
             if (charLeft + 45 > mx && charLeft + 5 < mx + 60 && charFootY > my && charFootY < my + 45) {
-                velocityY = -8; // 쥐돌이 닿으면 살짝 튕김
+                velocityY = -8; 
                 posX += (posX > (mx - p.x) ? 30 : -30);
             }
         }
 
-        // 발판 착지 로직 개선
+        // 착지 및 점프 모션 동기화
         if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
-            loadRive('kongsik_ingame_land.riv'); // 착지 모션 실행
+            loadRive('kongsik_ingame_land.riv'); 
             velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
-            motionTimer = PHYSICS.motionHold; // 타이머 시작
+            motionTimer = PHYSICS.motionHold; 
             if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; }
         }
     });
 
-    // 타이머 끝나면 다시 공중 모션으로 복구
+    // 춘식이 모션 복구 타이머
     if (motionTimer > 0) {
         motionTimer--;
         if (motionTimer === 1) loadRive('kongsik_ingame_air.riv');
@@ -181,7 +179,6 @@ function update() {
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            // 쥐돌이 크기 키우고 워킹 애니메이션 및 방향 반전 적용
             m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 40}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir*-1})`;
             stage.appendChild(m);
         }
