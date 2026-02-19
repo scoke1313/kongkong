@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 모션 보정 통합본</title>
+    <title>콩콩춘식 - 방향키 복구 및 모션 보정본</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -72,10 +72,15 @@
 </div>
 
 <script>
+// 점프 230px 보정 (-19.3), 이동 속도 7
 const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
 const SIZES = [138, 98, 58]; 
 let score = 0, currentY = 0, velocityY = 0, posX = 0, platforms = [], isGameRunning = false, lastLoadedFile = "";
-let riveInstance, mainRiveInstance, mouseAnimFrame = 0;
+let riveInstance, mainRiveInstance, keys = {}, currentScale = 1, mouseAnimFrame = 0;
+
+// 키보드 입력 감지 로직 추가
+window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') keys[e.code] = false; });
 
 function loadMainRive() { 
     mainRiveInstance = new rive.Rive({ 
@@ -125,6 +130,12 @@ function initPlatforms() {
 
 function update() {
     if (!isGameRunning) { requestAnimationFrame(update); return; }
+    
+    // 좌우 방향키 조작 로직 추가
+    if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
+    if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
+    posX = Math.max(-154, Math.min(154, posX));
+
     velocityY += PHYSICS.gravity; currentY += velocityY; mouseAnimFrame = (mouseAnimFrame + 1) % 20;
     const charLeft = 196 + posX - 25, charFootY = 752 + currentY;
 
@@ -160,7 +171,9 @@ function update() {
         document.getElementById('result-screen').style.display = 'flex';
     }
 
-    document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px)`;
+    // 캐릭터 가로 이동 및 방향(scaleX) 적용
+    document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
+    
     document.querySelectorAll('.platform, .mouse-enemy').forEach(el => el.remove());
     platforms.forEach(p => {
         const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}');`; document.getElementById('game-stage').appendChild(d);
