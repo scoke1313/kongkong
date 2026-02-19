@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 일반 점프 230px 보정판</title>
+    <title>콩콩춘식 - 최종 결과 화면 적용</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -11,32 +11,47 @@
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         #game-stage { position: relative; width: 393px; height: 852px; background-color: #FFFDF5; overflow: hidden; }
 
-        /* 메인 화면 */
+        /* --- 메인 화면 --- */
         #main-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_main.png'); background-size: 100% 100%; z-index: 2000; display: flex; flex-direction: column; align-items: center; }
         #main-rive-container { position: absolute; top: 0; left: 0; width: 393px; height: 852px; pointer-events: none; }
         #btn-start { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 345px; cursor: pointer; z-index: 2100; transition: transform 0.1s; }
 
-        /* 인게임 UI */
+        /* --- 인게임 UI --- */
         .ingame-ui { display: none; }
         #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_ingame.png'); background-repeat: repeat-y; background-size: 100% auto; z-index: 1; }
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
-        #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
-        .header-ui-container { position: absolute; top: 75px; left: 0; width: 100%; height: 120px; z-index: 1000; pointer-events: none; }
-        #score-board { position: absolute; top: 0; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
-        .rate-capsule { position: absolute; top: -1px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; box-sizing: border-box; overflow: visible; }
-        .ui-icon { position: absolute; top: 0; left: 0; width: 25px; height: 25px; object-fit: contain; transform: translate(12px, 9px); }
-        #rate-board { position: absolute; top: 0; left: 25px; font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; line-height: 46px; transform: translate(25px, -2px); white-space: nowrap; }
+        #score-board { position: absolute; top: 75px; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; z-index: 1000; }
+        .rate-capsule { position: absolute; top: 74px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .ui-icon { width: 25px; height: 25px; margin-right: 6px; object-fit: contain; transform: translateY(1px); }
+        #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
 
-        /* 결과 화면 */
-        #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 253, 245, 0.95); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; color: #2D1D1C; font-family: 'Arial', sans-serif; }
-        #result-title { font-family: 'Poetsen One', sans-serif; font-size: 42px; margin-bottom: 30px; }
-        #final-rate-box { font-size: 32px; font-weight: 900; color: #E76A6A; margin: 25px 0; border: 3px solid #F0E0C6; padding: 15px 30px; border-radius: 20px; background: white; }
-        .btn-group { display: flex; gap: 15px; margin-top: 40px; }
-        .result-btn { width: 150px; height: 55px; border-radius: 12px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; }
-        .btn-retry { background-color: #E76A6A; color: white; }
-        .btn-main { background-color: #F0E0C6; color: #2D1D1C; }
+        /* --- ★ 결과 화면 (image_8b9641.png 기반) ★ --- */
+        #result-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); z-index: 3000;
+            display: none; align-items: center; justify-content: center;
+        }
+        .result-popup {
+            width: 345px; background: white; border-radius: 40px;
+            padding: 40px 20px; box-sizing: border-box;
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+        }
+        .res-title { font-size: 18px; font-weight: 800; color: #2D1D1C; margin-bottom: 15px; }
+        .res-final-rate { font-size: 64px; font-weight: 900; color: #E76A6A; margin-bottom: 25px; font-family: 'Arial', sans-serif; }
+        
+        .res-detail-row { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; width: 100%; }
+        .res-detail-icon { width: 24px; height: 24px; margin-right: 10px; object-fit: contain; }
+        .res-detail-text { font-size: 18px; font-weight: 700; color: #2D1D1C; }
 
-        /* 게임 요소 */
+        .res-character { width: 140px; margin: 30px 0 20px; }
+        .res-comment { font-size: 16px; font-weight: 800; color: #2D1D1C; line-height: 1.4; margin-bottom: 5px; }
+
+        .res-btn-group { display: flex; gap: 10px; width: 100%; margin-top: 30px; }
+        .res-btn { flex: 1; height: 65px; border-radius: 15px; border: none; font-size: 18px; font-weight: 800; cursor: pointer; }
+        .btn-retry { background: #333; color: white; }
+        .btn-saving { background: #E76A6A; color: white; }
+
+        /* 캐릭터/캔버스 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
@@ -54,29 +69,46 @@
         <div id="main-rive-container"><canvas id="main-rive-canvas"></canvas></div>
         <img src="btn_start.png" id="btn-start" alt="시작하기" onclick="startGame()">
     </div>
+
     <div id="bg-layer" class="ingame-ui"></div>
     <div id="btn-close-wrap" class="ingame-ui" onclick="location.reload();"><img src="close.png" alt="close"></div>
-    <div class="header-ui-container ingame-ui">
-        <div id="score-board">0m</div>
-        <div class="rate-capsule"><img src="clover_s.png" class="ui-icon" alt="clover"><span id="rate-board">0.00%</span></div>
+    <div id="score-board" class="ingame-ui">0m</div>
+    <div class="rate-capsule ingame-ui">
+        <img src="clover_s.png" class="ui-icon" alt="clover">
+        <span id="rate-board">0.00%</span>
     </div>
+    
     <div id="canvas-container" class="ingame-ui"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default ingame-ui"></div>
     <div id="btn-right" class="controller ctrl-default ingame-ui"></div>
+
     <div id="result-screen">
-        <div id="result-title">CHALLENGE END!</div>
-        <div class="result-item">기록: <span id="res-dist">0</span>m</div>
-        <div class="result-item">획득 클로버: <span id="res-clover">0</span>개</div>
-        <div id="final-rate-box">최종 금리: <span id="res-rate">0.00</span>%</div>
-        <div class="btn-group">
-            <button class="result-btn btn-retry" onclick="startGame()">재도전</button>
-            <button class="result-btn btn-main" onclick="location.reload()">메인가기</button>
+        <div class="result-popup">
+            <div class="res-title">금리 점프 챌린지 결과</div>
+            <div class="res-final-rate" id="res-total-rate">0.00%</div>
+            
+            <div class="res-detail-row">
+                <img src="pogo_s.png" class="res-detail-icon">
+                <div class="res-detail-text"><span id="res-dist">0</span>m 기본 <span id="res-dist-rate">0.00</span>%</div>
+            </div>
+            <div class="res-detail-row">
+                <img src="clover_s.png" class="res-detail-icon">
+                <div class="res-detail-text"><span id="res-clover">0</span>개 우대 <span id="res-clover-rate">0.0</span>%</div>
+            </div>
+
+            <img src="result_tip.png" class="res-character">
+            <div class="res-comment">꽤 괜찮은 금리네요!<br>이 금리로 적금을 만들까요?</div>
+
+            <div class="res-btn-group">
+                <button class="res-btn btn-retry" onclick="startGame()">다시하기</button>
+                <button class="res-btn btn-saving" onclick="location.reload()">적금 만들기</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-// 점프 높이 230px 보정 (jumpPower: -19.3)
+// 물리 설정
 const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
 const SIZES = [138, 98, 58]; 
 let score = 0, cloverCount = 0, currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
@@ -86,7 +118,23 @@ const scoreEl = document.getElementById('score-board'), rateEl = document.getEle
 
 function loadMainRive() { mainRiveInstance = new rive.Rive({ src: 'kongsik.riv', canvas: document.getElementById('main-rive-canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => mainRiveInstance.resizeDrawingSurfaceToCanvas() }); }
 function startGame() { document.getElementById('main-screen').style.display = 'none'; document.getElementById('result-screen').style.display = 'none'; document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'block'); isGameRunning = true; cloverCount = 0; initPlatforms(); loadRive('kongsik_ingame_air.riv'); }
-function showResult() { isGameRunning = false; const finalDist = Math.floor(score * 0.01); const totalRate = (finalDist * 0.01 + cloverCount * 0.1).toFixed(2); document.getElementById('res-dist').innerText = finalDist; document.getElementById('res-clover').innerText = cloverCount; document.getElementById('res-rate').innerText = totalRate; document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'none'); document.getElementById('result-screen').style.display = 'flex'; }
+
+function showResult() {
+    isGameRunning = false;
+    const finalDist = Math.floor(score * 0.01);
+    const dRate = finalDist * 0.01;
+    const cRate = cloverCount * 0.1;
+    const totalRate = (dRate + cRate).toFixed(2);
+
+    document.getElementById('res-total-rate').innerText = totalRate + "%";
+    document.getElementById('res-dist').innerText = finalDist;
+    document.getElementById('res-dist-rate').innerText = dRate.toFixed(2);
+    document.getElementById('res-clover').innerText = cloverCount;
+    document.getElementById('res-clover-rate').innerText = cRate.toFixed(1);
+
+    document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'none');
+    document.getElementById('result-screen').style.display = 'flex';
+}
 
 const setInput = (key, isDown, btn) => { keys[key] = isDown; if(btn) { btn.classList.toggle('ctrl-default', !isDown); btn.classList.toggle('ctrl-pressed', isDown); }};
 window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, document.getElementById('btn-left')); if (e.code === 'ArrowRight') setInput('ArrowRight', true, document.getElementById('btn-right')); });
@@ -109,7 +157,6 @@ function update() {
     if (!isGameRunning) { requestAnimationFrame(update); return; }
     if (keys['ArrowLeft']) { posX -= 7; currentScale = -1; } if (keys['ArrowRight']) { posX += 7; currentScale = 1; }
     posX = Math.max(-154, Math.min(154, posX)); velocityY += PHYSICS.gravity; currentY += velocityY;
-    
     platforms.forEach(p => {
         if (!p.isBroken) {
             if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
@@ -128,7 +175,7 @@ function update() {
             }
         }
     });
-    if (currentY < -250) { let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; platforms.forEach(p => { p.y += d; p.baseY += d; if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (100 + Math.random() * 100))); p.isBroken = false; } }); }
+    if (currentY < -250) { let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; platforms.forEach(p => { p.y += d; p.baseY += d; if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (110 + Math.random() * 100))); p.isBroken = false; } }); }
     if (752 + currentY > 1050) showResult();
     canvasCont.style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     document.querySelectorAll('.platform, .game-item').forEach(el => el.remove());
