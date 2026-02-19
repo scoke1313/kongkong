@@ -2,146 +2,188 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>콩콩춘식 (빌런 넉백 강화 패치)</title>
+    <title>콩콩춘식 - 쥐돌이 정방향 패치</title>
+    <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        body { margin: 0; padding: 0; background-color: #333; font-family: 'Pretendard', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; touch-action: none; user-select: none; }
-        #game-container { position: relative; width: 100%; max-width: 480px; height: 100%; max-height: 850px; background: linear-gradient(to bottom, #89CFF0 0%, #E0F7FA 100%); box-shadow: 0 0 20px rgba(0,0,0,0.5); overflow: hidden; }
-        canvas { display: block; width: 100%; height: 100%; }
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.7); color: white; text-align: center; z-index: 20; }
-        .hidden { display: none !important; }
-        h1 { font-size: 32px; color: #FFEF6B; text-shadow: 2px 2px 0 #333; margin-bottom: 10px; }
-        .btn { padding: 15px 40px; font-size: 20px; font-weight: bold; color: #333; background-color: #FEE500; border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 5px 0 #cdae04; margin-top: 20px; }
-        #score-board { position: absolute; top: 20px; left: 20px; font-size: 20px; font-weight: bold; color: #333; background: rgba(255, 255, 255, 0.9); padding: 8px 16px; border-radius: 20px; z-index: 5; }
-        .controls-layer { position: absolute; bottom: 30px; left: 0; width: 100%; height: 100px; display: flex; justify-content: space-between; padding: 0 30px; box-sizing: border-box; pointer-events: none; z-index: 15; }
-        .control-btn { width: 80px; height: 80px; background: rgba(255, 255, 255, 0.5); border-radius: 50%; border: 4px solid white; pointer-events: auto; display: flex; justify-content: center; align-items: center; font-size: 40px; color: #333; cursor: pointer; }
+        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        #game-stage { 
+            position: relative; width: 393px; height: 852px; 
+            background-image: url('bg_ingame.png'); background-repeat: repeat-y;
+            background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
+        }
+        #canvas-container {
+            position: absolute; width: 86px !important; height: 138px !important;
+            bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
+        }
+        canvas { width: 100%; height: 100%; }
+        .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
+        .mouse-enemy { position: absolute; width: 60px; height: 45px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
+        .controller {
+            position: absolute; width: 80px; height: 80px; background-size: contain;
+            z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
+        #btn-right { right: 30px; bottom: 40px; }
+        .ctrl-default { background-image: url('controller_Default.png'); }
+        .ctrl-pressed { background-image: url('controller_pressed.png'); }
+        #score-board { position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
     </style>
 </head>
 <body>
-<div id="game-container">
-    <div id="score-board">금리: <span id="rate-display">2.0</span>%</div>
-    <canvas id="gameCanvas"></canvas>
-    <div class="controls-layer"><div class="control-btn" id="btn-left">◀</div><div class="control-btn" id="btn-right">▶</div></div>
-    <div id="start-screen" class="overlay">
-        <h1>콩콩춘식</h1>
-        <p>쥐돌이를 피하세요! (부딪히면 넉백 주의)</p>
-        <button class="btn" onclick="startGame()">게임 시작</button>
-    </div>
-    <div id="game-over-screen" class="overlay hidden">
-        <div style="background:white; color:#333; padding:30px; border-radius:20px;">
-            <h3>적금 만기!</h3><p>최종 금리</p><div style="font-size:48px; font-weight:bold; color:#D1180B;"><span id="final-rate">0.0</span>%</div>
-        </div>
-        <button class="btn" onclick="resetGame()">다시 하기</button>
-    </div>
+
+<div id="game-stage">
+    <div id="score-board">0m</div>
+    <div id="canvas-container"><canvas id="canvas"></canvas></div>
+    <div id="btn-left" class="controller ctrl-default"></div>
+    <div id="btn-right" class="controller ctrl-default"></div>
 </div>
+
 <script>
-    const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('rate-display'); const finalScoreEl = document.getElementById('final-rate');
-    const startScreen = document.getElementById('start-screen'); const gameOverScreen = document.getElementById('game-over-screen');
-    const btnLeft = document.getElementById('btn-left'); const btnRight = document.getElementById('btn-right');
-    const imgJump = new Image(); imgJump.src = 'chun_pogo1.png'; const imgLand = new Image(); imgLand.src = 'chun_pogo2.png';
-    let imagesLoaded = 0; imgJump.onload = () => imagesLoaded++; imgLand.onload = () => imagesLoaded++;
+const PHYSICS = { gravity: 0.81, jumpPower: -18.9, moveSpeed: 7, motionHold: 10 };
+const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
+const SIZES = [138, 98, 58]; 
 
-    let animationId, isGameOver = false, score = 2.0, platforms = [], items = [], particles = [], clouds = [];
-    const GRAVITY = 0.45, JUMP_STRENGTH = -13, PLATFORM_WIDTH = 100, PLATFORM_GAP = 90, MOVE_SPEED = 6, FIXED_WIDTH = 80;
-    const player = { x: 240, y: 700, vx: 0, vy: 0, direction: 1, rotation: 0, landingTimer: 0 };
-    const keys = { right: false, left: false };
+let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
+let riveInstance, keys = {}, currentScale = 1;
+let platforms = [], motionTimer = 0, lastLoadedFile = "";
+let startTime = Date.now(), mouseAnimFrame = 0;
 
-    function resize() { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
-    window.addEventListener('resize', resize); resize();
+const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), scoreEl = document.getElementById('score-board');
 
-    window.addEventListener('keydown', e => { if(e.code === 'ArrowRight') keys.right = true; if(e.code === 'ArrowLeft') keys.left = true; });
-    window.addEventListener('keyup', e => { if(e.code === 'ArrowRight') keys.right = false; if(e.code === 'ArrowLeft') keys.left = false; });
-    const addTouch = (btn, key) => {
-        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
-        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+const setInput = (key, isDown, btn) => { 
+    keys[key] = isDown; 
+    if(btn) { btn.classList.toggle('ctrl-default', !isDown); btn.classList.toggle('ctrl-pressed', isDown); }
+};
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight);
+});
+
+const attachControl = (btn, key) => {
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); });
+};
+attachControl(btnLeft, 'ArrowLeft'); attachControl(btnRight, 'ArrowRight');
+
+function loadRive(fileName) {
+    if (lastLoadedFile === fileName) return;
+    lastLoadedFile = fileName;
+    if (riveInstance) riveInstance.cleanup();
+    riveInstance = new rive.Rive({ src: fileName, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); } });
+}
+
+function createPlatformData(yPos) {
+    const sizeIdx = Math.floor(Math.random() * SIZES.length);
+    const width = SIZES[sizeIdx];
+    const rand = Math.random();
+    const playTime = (Date.now() - startTime) / 1000;
+    let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
+    const typeKey = isBreakable ? 'wood' : 'block';
+    
+    // ★ 큰 발판(138px)에서만 쥐돌이 출현 로직 적용
+    let canHaveMouse = (width === 138) && !isBreakable && (rand < 0.2); 
+
+    return {
+        x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
+        img: PLATFORM_TYPES[typeKey][sizeIdx],
+        isBreakable: isBreakable, durability: isBreakable ? 2 : 999,
+        hasMouse: canHaveMouse, mouseX: Math.random() * (width - 60), mouseDir: Math.random() > 0.5 ? 1 : -1,
+        mouseSpeed: 0.7 + Math.random() * 0.5, // 속도 더 안정적으로 하향
+        type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false
     };
-    addTouch(btnLeft, 'left'); addTouch(btnRight, 'right');
+}
 
-    class Enemy { // 쥐돌이 빌런
-        constructor(x, y) { this.x = x; this.y = y; this.size = 26; this.collected = false; this.angle = 0; }
-        draw() {
-            if (this.collected) return;
-            this.angle += 0.1; const floatY = Math.sin(this.angle) * 4;
-            ctx.beginPath(); ctx.arc(this.x, this.y + floatY, this.size, 0, Math.PI * 2);
-            ctx.fillStyle = '#FF5252'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#311B92'; ctx.stroke();
-            ctx.fillStyle = 'white'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('X', this.x, this.y + floatY);
-        }
+function initPlatforms() {
+    document.querySelectorAll('.platform, .mouse-enemy').forEach(el => el.remove());
+    score = 0; scoreEl.innerText = "0m"; bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
+    document.getElementById('game-stage').style.backgroundPositionY = '0px';
+    startTime = Date.now(); platforms = [];
+    let lastY = 752;
+    for (let i = 0; i < 6; i++) {
+        lastY -= (160 + Math.random() * 40);
+        platforms.push(createPlatformData(lastY));
     }
+    platforms.push({ x: 393/2-69, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999 });
+}
 
-    class Particle {
-        constructor(x, y, color) { this.x = x; this.y = y; this.vx = (Math.random()-0.5)*8; this.vy = (Math.random()-0.5)*8; this.life = 1.0; this.color = color || '#9CCC65'; }
-        update() { this.x += this.vx; this.y += this.vy; this.vy += 0.3; this.life -= 0.04; }
-        draw() { ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, 5, 5); ctx.globalAlpha = 1.0; }
-    }
+loadRive('kongsik_ingame_air.riv');
+initPlatforms();
 
-    function generatePlatform(y) {
-        const x = Math.random() * (canvas.width - PLATFORM_WIDTH);
-        platforms.push({ x, y, width: PLATFORM_WIDTH, height: 16, broken: false });
-        if (Math.random() < 0.3) items.push(new Enemy(x + PLATFORM_WIDTH/2, y - 40));
-    }
+function update() {
+    if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
+    if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
+    const limit = 393/2 - 43;
+    posX = Math.max(-limit, Math.min(limit, posX));
 
-    function update() {
-        if (isGameOver) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (keys.left) { player.vx = -MOVE_SPEED; player.direction = -1; } else if (keys.right) { player.vx = MOVE_SPEED; player.direction = 1; } else { player.vx *= 0.92; }
-        player.x += player.vx; if (player.x < 0) player.x = canvas.width; if (player.x > canvas.width) player.x = 0;
+    velocityY += PHYSICS.gravity;
+    currentY += velocityY;
+    mouseAnimFrame = (mouseAnimFrame + 1) % 20;
 
-        if (player.landingTimer > 0) { player.landingTimer--; if (player.landingTimer === 0) player.vy = JUMP_STRENGTH; }
-        else { player.vy += GRAVITY; player.y += player.vy; }
+    const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
 
-        if (player.y < canvas.height / 2.5 && player.vy < 0) {
-            let dy = -player.vy; player.y += dy;
-            platforms.forEach(p => p.y += dy); items.forEach(i => i.y += dy); particles.forEach(p => p.y += dy);
-            if (platforms[platforms.length-1].y > PLATFORM_GAP) generatePlatform(platforms[platforms.length-1].y - PLATFORM_GAP);
-        }
-
-        // 충돌 판정
-        let feetY = player.y + 60;
-        if (player.landingTimer === 0 && player.vy > 0) {
-            platforms.forEach(p => {
-                if (!p.broken && player.x > p.x-15 && player.x < p.x+p.width+15 && feetY >= p.y && feetY <= p.y+20) {
-                    player.landingTimer = 8; player.y = p.y - 60; player.vy = 0;
-                    if (platforms.indexOf(p) !== 0) { p.broken = true; score += 0.1; scoreEl.innerText = score.toFixed(1); }
-                }
-            });
-        }
-
-        // 쥐돌이 충돌 (판정 30, 넉백 강화)
-        items.forEach(item => {
-            if (!item.collected && Math.abs(player.x - item.x) < 30 && Math.abs(player.y - item.y) < 30) {
-                item.collected = true; player.vy = 12; player.vx = (player.x < item.x) ? -18 : 18;
-                for(let k=0; k<20; k++) particles.push(new Particle(item.x, item.y, '#FF5252'));
+    platforms.forEach(p => {
+        if (p.isBroken) return;
+        if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
+        
+        if (p.hasMouse) {
+            p.mouseX += p.mouseDir * p.mouseSpeed;
+            if (p.mouseX <= 0 || p.mouseX + 60 >= p.w) p.mouseDir *= -1;
+            
+            let mx = p.x + p.mouseX, my = p.y - 35;
+            if (charLeft + 45 > mx && charLeft + 5 < mx + 60 && charFootY > my && charFootY < my + 45) {
+                velocityY = -8; 
+                posX += (posX > (mx - p.x) ? 30 : -30);
             }
-        });
+        }
 
-        platforms = platforms.filter(p => p.y < canvas.height);
+        if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
+            loadRive('kongsik_ingame_land.riv'); 
+            velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
+            motionTimer = PHYSICS.motionHold; 
+            if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; }
+        }
+    });
+
+    if (motionTimer > 0) {
+        motionTimer--;
+        if (motionTimer === 1) loadRive('kongsik_ingame_air.riv');
+    }
+
+    if (currentY < -250) {
+        let diff = -250 - currentY; currentY = -250; score += Math.floor(diff); scoreEl.innerText = score + "m";
+        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
         platforms.forEach(p => {
-            if (p.broken) return;
-            ctx.fillStyle = '#8D6E63'; ctx.fillRect(p.x, p.y, p.width, p.height);
-            ctx.fillStyle = '#9CCC65'; ctx.fillRect(p.x, p.y, p.width, 6);
+            p.y += diff;
+            if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - 170)); p.isBroken = false; }
         });
-        items.forEach(i => i.draw());
-        particles = particles.filter(p => p.life > 0); particles.forEach(p => { p.update(); p.draw(); });
-
-        ctx.save(); ctx.translate(player.x, player.y); ctx.scale(-player.direction, 1);
-        let img = player.landingTimer > 0 ? imgLand : imgJump;
-        if(imagesLoaded >= 2) ctx.drawImage(img, -40, -60, 80, 120);
-        else { ctx.fillStyle = '#FEE500'; ctx.fillRect(-20, -30, 40, 60); }
-        ctx.restore();
-
-        if (player.y > canvas.height + 100) { isGameOver = true; finalScoreEl.innerText = score.toFixed(1); gameOverScreen.classList.remove('hidden'); }
-        else animationId = requestAnimationFrame(update);
     }
 
-    function startGame() { startScreen.classList.add('hidden'); gameOverScreen.classList.add('hidden'); isGameOver = false;
-        score = 2.0; player.x = canvas.width/2; player.y = canvas.height-150; player.vy = -10;
-        platforms = []; items = []; particles = []; generatePlatform(canvas.height-50);
-        for(let i=0; i<7; i++) generatePlatform(canvas.height-150-i*90);
-        update();
-    }
-    function resetGame() { startGame(); }
+    if (charFootY > 950) initPlatforms();
+
+    document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
+    
+    const stage = document.getElementById('game-stage');
+    document.querySelectorAll('.platform, .mouse-enemy').forEach(el => el.remove());
+    platforms.forEach(p => {
+        if (p.isBroken) return;
+        const d = document.createElement('div');
+        d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}')`;
+        stage.appendChild(d);
+        if (p.hasMouse) {
+            const m = document.createElement('div');
+            m.className = 'mouse-enemy';
+            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 40}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`;
+            stage.appendChild(m);
+        }
+    });
+    requestAnimationFrame(update);
+}
+update();
 </script>
 </body>
 </html>
