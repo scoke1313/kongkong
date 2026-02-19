@@ -1,109 +1,141 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>춘식이 점프 물리 테스트</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>콩콩춘식 - 이중 캔버스 시스템</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #A1C4FD; }
-    #container { position: relative; width: 480px; height: 800px; background: white; overflow: hidden; border: 2px solid #fff; }
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
+    #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     
-    /* 필승 비법: 86x138 투명 캔버스 */
-    #chunCanvas { 
-      position: absolute; 
-      width: 86px !important; 
-      height: 138px !important; 
-      z-index: 2; 
+    #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+
+    /* 필승 비법 업그레이드: 캔버스 자체를 두 개로 분리하여 겹침 */
+    .chun-layer {
+      position: absolute;
+      z-index: 2;
+      width: 86px !important;
+      height: 138px !important;
       pointer-events: none;
+      display: none; /* 기본은 숨김 */
     }
-    .info { position: absolute; top: 10px; width: 100%; text-align: center; color: #333; font-weight: bold; z-index: 10; }
+
+    #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
+    .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
+    .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
+    .hidden{display:none!important}
   </style>
 </head>
 <body>
-  <div id="container">
-    <div class="info" id="status">캐릭터 로딩 중...</div>
-    <canvas id="chunCanvas"></canvas>
+<div id="game-container">
+  <div id="hud">금리: <span id="rate">2.0</span>%</div>
+  <canvas id="bgCanvas"></canvas>
+  
+  <canvas id="landCanvas" class="chun-layer"></canvas>
+  <canvas id="airCanvas" class="chun-layer"></canvas>
+
+  <div id="start" class="overlay">
+    <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
+    <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">캐릭터 로딩 중...</div>
+    <button class="btn hidden" id="btnStart">게임 시작</button>
   </div>
+</div>
 
-  <script>
-    const canvas = document.getElementById('chunCanvas');
-    const statusText = document.getElementById('status');
-    let landRive, airRive, currentRive;
-    let landReady = false, airReady = false;
+<script>
+(() => {
+  const bgCanvas = document.getElementById('bgCanvas'), bgCtx = bgCanvas.getContext('2d');
+  const landCanvas = document.getElementById('landCanvas'), airCanvas = document.getElementById('airCanvas');
+  const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
 
-    // 1. 물리 변수 설정 (0.7초 체류 점프 기반)
-    let jumpPower = -15; // 점프 힘
-    let gravity = 0.6;   // 중력
-    let p = { x: 197, y: 600, vy: jumpPower }; // 위치 및 속도
-    let isRunning = false;
+  function resize(){ bgCanvas.width = 480; bgCanvas.height = 800; }
+  resize();
 
-    // 2. 리브 파일 개별 로드 (필승 비법)
-    function init() {
-      landRive = new rive.Rive({
-        [cite_start]src: 'kongsik_ingame_land.riv', [cite: 1378]
-        canvas: canvas,
-        artboard: 'Artboard',
-        stateMachines: 'State Machine 1',
-        autoplay: false,
-        onLoad: () => { 
-          landRive.resizeDrawingSurfaceToCanvas();
-          landReady = true; checkStart(); 
-        }
-      });
+  let landRive, airRive, activeCanvas = null;
+  let landReady = false, airReady = false;
 
-      airRive = new rive.Rive({
-        [cite_start]src: 'kongsik_ingame_air.riv', [cite: 1090]
-        canvas: canvas,
-        artboard: 'Artboard',
-        stateMachines: 'State Machine 1',
-        autoplay: false,
-        onLoad: () => { 
-          airRive.resizeDrawingSurfaceToCanvas();
-          airReady = true; checkStart(); 
-        }
-      });
+  // 1. 각각의 캔버스에 독립적으로 로드하여 충돌 방지
+  function init() {
+    landRive = new rive.Rive({
+      src: 'kongsik_ingame_land.riv',
+      canvas: landCanvas,
+      artboard: 'Artboard',
+      stateMachines: 'State Machine 1',
+      autoplay: false,
+      onLoad: () => { landReady = true; checkReady(); }
+    });
+
+    airRive = new rive.Rive({
+      src: 'kongsik_ingame_air.riv',
+      canvas: airCanvas,
+      artboard: 'Artboard',
+      stateMachines: 'State Machine 1',
+      autoplay: false,
+      onLoad: () => { airReady = true; checkReady(); }
+    });
+  }
+
+  function checkReady() {
+    if(landReady && airReady) {
+      status.innerText = "준비 완료! 🐯";
+      btnStart.classList.remove('hidden');
+    }
+  }
+  init();
+
+  let jumpPower = -15, gravity = 0.6; 
+  let p = { x: 197, y: 600, vy: jumpPower }, isRunning = false, lastDir = 1;
+
+  // 시선 반전 조작 (이동 반대 방향)
+  window.addEventListener('keydown', e => { 
+    if(e.code==='ArrowLeft'){ lastDir=1; } 
+    if(e.code==='ArrowRight'){ lastDir=-1; } 
+  });
+
+  function loop() {
+    if(!isRunning) return;
+    p.vy += gravity; p.y += p.vy;
+
+    // 바닥/발판 충돌 판정
+    if (p.y > 600) {
+      p.y = 600; p.vy = jumpPower;
+      // [착지 모션 쇼타임]
+      showCanvas(landCanvas);
+      landRive.scrub("State Machine 1", 0);
+      landRive.play("State Machine 1");
+    } 
+    else if (p.vy < 0 && p.y < 580) {
+      // [공중 모션 쇼타임]
+      showCanvas(airCanvas);
+      airRive.play("State Machine 1");
     }
 
-    function checkStart() {
-      if(landReady && airReady) {
-        statusText.innerText = "화면을 클릭하면 점프 시작! 🐯";
-        window.addEventListener('mousedown', () => { if(!isRunning) { isRunning = true; loop(); } });
-      }
+    // 현재 활성화된 캔버스만 위치 이동 및 노출
+    if(activeCanvas) {
+      activeCanvas.style.left = (p.x - 43) + 'px';
+      activeCanvas.style.top = (p.y - 69) + 'px';
+      activeCanvas.style.transform = `scaleX(${lastDir})`;
     }
 
-    // 3. 게임 루프 (상승/하강에 따른 모션 스위칭)
-    function loop() {
-      // 물리 연산
-      p.vy += gravity; 
-      p.y += p.vy;
+    requestAnimationFrame(loop);
+  }
 
-      // 바닥에 닿으면 다시 점프 (임시 바닥 700px)
-      if (p.y > 600) {
-        p.y = 600;
-        p.vy = jumpPower;
+  function showCanvas(target) {
+    landCanvas.style.display = 'none';
+    airCanvas.style.display = 'none';
+    target.style.display = 'block';
+    activeCanvas = target;
+  }
 
-        // [모션 교체] 바닥에 닿는 순간 LAND 모션 1회 재생
-        currentRive = landRive;
-        currentRive.scrub("State Machine 1", 0); // 처음으로 리셋
-        currentRive.play("State Machine 1");
-      }
-
-      // [모션 교체] 위로 올라가는 중일 때는 AIR 모션 유지
-      if (p.vy < 0 && p.y < 580) { // 바닥에서 살짝 떨어졌을 때 전환
-        if (currentRive !== airRive) {
-          currentRive = airRive;
-          currentRive.play(); 
-        }
-      }
-
-      // 캔버스 위치 업데이트
-      canvas.style.left = p.x + 'px';
-      canvas.style.top = p.y + 'px';
-
-      requestAnimationFrame(loop);
-    }
-
-    init();
-  </script>
+  btnStart.onclick = () => {
+    document.getElementById('start').classList.add('hidden');
+    isRunning = true;
+    landRive.resizeDrawingSurfaceToCanvas();
+    airRive.resizeDrawingSurfaceToCanvas();
+    loop();
+  };
+})();
+</script>
 </body>
 </html>
