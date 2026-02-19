@@ -17,7 +17,8 @@
         }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
-        .mouse-enemy { position: absolute; width: 60px; height: 45px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
+        /* 쥐돌이 크기 1.2배 확대 (60x45 -> 72x54) */
+        .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
             z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -85,15 +86,14 @@ function createPlatformData(yPos) {
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
     
-    // ★ 큰 발판(138px)에서만 쥐돌이 출현 로직 적용
     let canHaveMouse = (width === 138) && !isBreakable && (rand < 0.2); 
 
     return {
         x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
         isBreakable: isBreakable, durability: isBreakable ? 2 : 999,
-        hasMouse: canHaveMouse, mouseX: Math.random() * (width - 60), mouseDir: Math.random() > 0.5 ? 1 : -1,
-        mouseSpeed: 0.7 + Math.random() * 0.5, // 속도 더 안정적으로 하향
+        hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
+        mouseSpeed: 0.7 + Math.random() * 0.5, 
         type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false
     };
 }
@@ -132,12 +132,13 @@ function update() {
         
         if (p.hasMouse) {
             p.mouseX += p.mouseDir * p.mouseSpeed;
-            if (p.mouseX <= 0 || p.mouseX + 60 >= p.w) p.mouseDir *= -1;
+            if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) p.mouseDir *= -1;
             
             let mx = p.x + p.mouseX, my = p.y - 35;
-            if (charLeft + 45 > mx && charLeft + 5 < mx + 60 && charFootY > my && charFootY < my + 45) {
-                velocityY = -8; 
-                posX += (posX > (mx - p.x) ? 30 : -30);
+            // ★ 판정 범위 축소: 몸집(72)보다 좁은 범위(중심부 약 30px)만 체크
+            if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 50 && charFootY > my && charFootY < my + 45) {
+                velocityY = -10; // 넉백 강화
+                posX += (posX > (mx - p.x) ? 40 : -40); // 넉백 거리 강화
             }
         }
 
@@ -177,7 +178,8 @@ function update() {
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 40}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`;
+            // 쥐 이미지 크기에 맞춰 배치 조정
+            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 48}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
         }
     });
