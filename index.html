@@ -37,24 +37,23 @@
 <script>
 // --- 물리 파라미터 (속도와 시간 중심) ---
 const PHYSICS = {
-    gravity: 0.9,       // 중력 (클수록 빨리 떨어짐)
-    jumpPower: -18,     // 도약 속도 (클수록 높이 뜀)
-    groundY: 0,         // 바닥 기준
-    moveSpeed: 6        // 좌우 이동 속도 추가
+    gravity: 0.9,       
+    jumpPower: -18,     
+    groundY: 0,         
+    moveSpeed: 6,
+    stageWidth: 393     // 스테이지 너비 추가
 };
 
 let currentY = 0;
 let velocityY = 0;
-let posX = 0;           // 좌우 위치 변수
-let isJumping = true;   // 자동 점프 활성화
+let posX = 0;           
+let isJumping = true;   
 let riveInstance;
-let keys = {};          // 키 입력 상태 저장
-let currentScale = 1;   // 좌우 반전 상태 (1: 오른쪽, -1: 왼쪽)
+let keys = {};          
+let currentScale = 1;   
 
-// Rive 초기화 함수 (파일 교체용)
 function loadRive(fileName) {
     if (riveInstance) riveInstance.cleanup();
-    
     riveInstance = new rive.Rive({
         src: fileName,
         canvas: document.getElementById('canvas'),
@@ -66,48 +65,44 @@ function loadRive(fileName) {
     });
 }
 
-// 최초 실행: 공중(대기) 모션 로드
 loadRive('kongsik_ingame_air.riv');
 
 function update() {
     // 1. 좌우 이동 로직
     if (keys['ArrowLeft']) {
         posX -= PHYSICS.moveSpeed;
-        currentScale = -1; // 왼쪽 반전
+        currentScale = -1;
     }
     if (keys['ArrowRight']) {
         posX += PHYSICS.moveSpeed;
-        currentScale = 1;  // 오른쪽 정방향
+        currentScale = 1;
     }
+
+    // [추가] 화면 밖 이탈 방지 로직
+    // 중심축이 50%이므로 posX 기준 왼쪽 끝은 -196.5 + 43, 오른쪽 끝은 196.5 - 43
+    const limit = (PHYSICS.stageWidth / 2) - 43;
+    if (posX < -limit) posX = -limit;
+    if (posX > limit) posX = limit;
 
     // 2. 수직 점프 로직
     if (isJumping) {
         velocityY += PHYSICS.gravity;
         currentY += velocityY;
 
-        // 바닥 도착 판정 (자동 재점프)
         if (currentY >= PHYSICS.groundY) {
             currentY = PHYSICS.groundY;
             velocityY = PHYSICS.jumpPower; 
             loadRive('kongsik_ingame_air.riv');
         }
 
-        // 캐릭터 위치(X, Y) 및 반전 업데이트
-        // 원본의 translateY 구조를 유지하면서 translateX와 scaleX를 병합
         document.getElementById('canvas-container').style.transform = 
             `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
     }
     requestAnimationFrame(update);
 }
 
-// 입력 감지 (좌우 조작용)
-window.addEventListener('keydown', (e) => {
-    keys[e.code] = true;
-});
-
-window.addEventListener('keyup', (e) => {
-    keys[e.code] = false;
-});
+window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 update();
 </script>
