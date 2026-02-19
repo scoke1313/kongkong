@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 착지 모션 강화</title>
+  <title>콩콩춘식 - 모션 고정 버전</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -11,7 +11,7 @@
     #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
 
-    /* 필승 비법: 캔버스 분리 */
+    /* 춘식이 필승 비법: 캔버스 2개를 완전히 겹침 */
     .chun-layer {
       position: absolute;
       z-index: 2;
@@ -49,7 +49,7 @@
   let landRive, airRive, activeCanvas = null;
   let landReady = false, airReady = false;
 
-  [cite_start]// 1. 캐릭터 로드 [cite: 1090, 1378]
+  // 1. 초기화 로직 (여기서부터 절대 수정하지 않음)
   function init() {
     landRive = new rive.Rive({
       src: 'kongsik_ingame_land.riv',
@@ -57,7 +57,7 @@
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
       autoplay: false,
-      onLoad: () => { landReady = true; checkReady(); }
+      onLoad: () => { landReady = true; landRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
     airRive = new rive.Rive({
       src: 'kongsik_ingame_air.riv',
@@ -65,7 +65,7 @@
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
       autoplay: false,
-      onLoad: () => { airReady = true; checkReady(); }
+      onLoad: () => { airReady = true; airRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
   }
 
@@ -80,9 +80,9 @@
   let jumpPower = -15, gravity = 0.6; 
   let p = { x: 197, y: 600, vy: jumpPower }, isRunning = false, lastDir = 1;
   
-  // --- 핵심: 착지 모션 유지 시간 설정 ---
-  let landAnimationTimer = 0; // 착지 모션이 남은 시간(ms)
-  const LAND_DURATION = 200;  // 200ms(0.2초) 동안 착지 모션 강제 유지
+  // 2. 착지 모션 확보 타이머 (사용자님 요청 사항)
+  let landAnimationTimer = 0; 
+  const LAND_DURATION = 150; // 0.15초 동안 착지 모션 유지 (값 조절 가능)
 
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ lastDir=1; } 
@@ -97,24 +97,20 @@
 
     p.vy += gravity; p.y += p.vy;
 
-    // 바닥/발판 충돌 시
+    // 바닥/발판 충돌 시 처리
     if (p.y > 600) {
       p.y = 600; p.vy = jumpPower;
-      
-      // 착지 타이머 가동 시작
-      landAnimationTimer = LAND_DURATION; 
+      landAnimationTimer = LAND_DURATION; // 타이머 가동
       
       showCanvas(landCanvas);
       landRive.scrub("State Machine 1", 0);
       landRive.play("State Machine 1");
     } 
 
-    // 타이머가 작동 중이면 시간 차감
+    // 타이머 확인 후 모션 전환 로직
     if (landAnimationTimer > 0) {
       landAnimationTimer -= dt;
-    } 
-    // 타이머 종료 후 상승 중일 때만 공중 모션으로 전환
-    else if (p.vy < 0) {
+    } else if (p.vy < 0) {
       showCanvas(airCanvas);
       airRive.play("State Machine 1");
     }
@@ -124,7 +120,6 @@
       activeCanvas.style.top = (p.y - 69) + 'px';
       activeCanvas.style.transform = `scaleX(${lastDir})`;
     }
-
     requestAnimationFrame(loop);
   }
 
