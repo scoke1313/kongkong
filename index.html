@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 착지 딜레이 적용</title>
+  <title>콩콩춘식 - 시선 방향 수정</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -77,17 +77,19 @@
   init();
 
   let jumpPower = -15, gravity = 0.6; 
-  let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
+  let p = { x: 197, y: 600, vy: 0 }, isRunning = false;
   
-  // --- 딜레이 관련 변수 ---
+  // 리브 기본이 오른쪽이므로 오른쪽은 1, 왼쪽은 -1 (반전)
+  let lastDir = 1; 
+  
   let landAnimationTimer = 0; 
-  const LAND_DELAY = 100; // 0.1초 착지 딜레이 (물리 멈춤)
-  const LAND_VISIBLE_DURATION = 150; // 착지 모션 유지 총 시간
+  const LAND_DELAY = 100; 
+  const LAND_VISIBLE_DURATION = 150; 
   let isLanding = false; 
 
   window.addEventListener('keydown', e => { 
-    if(e.code==='ArrowLeft'){ lastDir=1; } 
-    if(e.code==='ArrowRight'){ lastDir=-1; } 
+    if(e.code==='ArrowLeft'){ lastDir = -1; } // 왼쪽 키 -> 왼쪽 바라보기 (반전)
+    if(e.code==='ArrowRight'){ lastDir = 1; } // 오른쪽 키 -> 오른쪽 바라보기 (정방향)
   });
 
   let lastTimestamp = 0;
@@ -96,16 +98,14 @@
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
-    // 착지 딜레이 중이 아닐 때만 물리 연산 진행
     if (!isLanding) {
       p.vy += gravity; 
       p.y += p.vy;
     }
 
-    // 바닥 충돌 (임시 바닥 600px)
     if (p.y > 600 && !isLanding) {
       p.y = 600;
-      p.vy = 0; // 일단 멈춤
+      p.vy = 0;
       isLanding = true;
       landAnimationTimer = LAND_VISIBLE_DURATION;
       
@@ -113,7 +113,6 @@
       landRive.scrub("State Machine 1", 0);
       landRive.play("State Machine 1");
 
-      // 0.1초 뒤에 실제 점프력 주입
       setTimeout(() => {
         p.vy = jumpPower;
         isLanding = false;
@@ -130,6 +129,7 @@
     [landCanvas, airCanvas].forEach(c => {
       c.style.left = (p.x - 43) + 'px';
       c.style.top = (p.y - 69) + 'px';
+      // 이동 방향에 맞춰 시선 처리
       c.style.transform = `scaleX(${lastDir})`;
     });
 
@@ -145,7 +145,7 @@
   btnStart.onclick = () => {
     document.getElementById('start').classList.add('hidden');
     isRunning = true;
-    p.vy = jumpPower; // 시작 점프
+    p.vy = jumpPower;
     lastTimestamp = performance.now();
     loop(lastTimestamp);
   };
