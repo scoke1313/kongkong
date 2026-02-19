@@ -2,85 +2,47 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - UI 위치 수정 및 최종 통합</title>
+    <title>콩콩춘식 - UI 위치 정밀 수정 버전</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        #game-stage { position: relative; width: 393px; height: 852px; background-color: #FFFDF5; overflow: hidden; }
+
+        /* 메인 화면 */
+        #main-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_main.png'); background-size: 100% 100%; z-index: 2000; display: flex; flex-direction: column; align-items: center; }
+        #main-rive-container { position: absolute; top: 0; left: 0; width: 393px; height: 852px; pointer-events: none; }
+        #btn-start { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 345px; cursor: pointer; z-index: 2100; transition: transform 0.1s; }
         
-        #game-stage { 
-            position: relative; width: 393px; height: 852px; 
-            background-color: #FFFDF5; overflow: hidden; 
-        }
-
-        /* --- 메인 화면 레이아웃 --- */
-        #main-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('bg_main.png'); background-size: 100% 100%;
-            z-index: 2000; display: flex; flex-direction: column; align-items: center;
-        }
-
-        #main-rive-container {
-            position: absolute; top: 0; left: 0; width: 393px; height: 852px;
-            pointer-events: none;
-        }
-
-        #btn-start {
-            position: absolute; bottom: 50px; left: 50%;
-            transform: translateX(-50%); width: 345px; 
-            cursor: pointer; z-index: 2100; transition: transform 0.1s;
-        }
-        #btn-start:active { transform: translateX(-50%) scale(0.95); }
-
-        /* --- 인게임 전용 요소 (초기 숨김) --- */
+        /* 인게임 UI */
         .ingame-ui { display: none; }
-
-        #bg-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('bg_ingame.png'); background-repeat: repeat-y;
-            background-size: 100% auto; z-index: 1;
-        }
-
-        /* 상단 닫기 버튼: 16px, 4px 마진 */
+        #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_ingame.png'); background-repeat: repeat-y; background-size: 100% auto; z-index: 1; }
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
         #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
 
-        /* --- 상단 UI 레이아웃 (시안 image_80b140.jpg 기준 좌측 정렬 세로 배치) --- */
-        .header-ui-container {
-            position: absolute; top: 75px; left: 20px; /* 좌측 정렬 */
-            display: flex; flex-direction: column; align-items: flex-start; /* 세로 나열 */
-            z-index: 1000;
+        /* 좌측 점수 UI */
+        #score-board { 
+            position: absolute; top: 75px; left: 20px; 
+            font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; 
+            line-height: 1; z-index: 1000;
         }
 
-        /* 좌측 점수 UI (38px, #2D1D1C) */
-        #score-board {
-            font-family: 'Poetsen One', sans-serif;
-            font-size: 38px; color: #2D1D1C; font-weight: normal; 
-            line-height: 1; margin-bottom: 8px; /* 캡슐과의 간격 */
+        /* 우측 클로버 UI: 상단 74px, 우측 20px 배치 */
+        .rate-capsule { 
+            position: absolute; top: 74px; right: 20px;
+            display: flex; align-items: center; justify-content: center; 
+            background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; 
+            width: 130px; height: 46px; box-sizing: border-box; z-index: 1000;
         }
-
-        /* 클로버 캡슐 UI (130x46, #F0E0C6) */
-        .rate-capsule {
-            display: flex; align-items: center; justify-content: center;
-            background: #FFFFFF; border: 2px solid #F0E0C6;
-            border-radius: 30px; width: 130px; height: 46px; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03); box-sizing: border-box;
-        }
-
         .ui-icon { width: 25px; height: 25px; margin-right: 6px; object-fit: contain; }
-        
-        /* 클로버 수치 폰트 (20px, #2D1D1C) */
-        #rate-board { 
-            font-size: 20px; font-weight: 800; color: #2D1D1C; 
-            font-family: 'Arial', sans-serif; line-height: 1;
-        }
+        #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; line-height: 1; }
 
-        /* 인게임 캐릭터 및 캔버스 */
+        /* 캐릭터 및 효과 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; }
         canvas { width: 100%; height: 100%; }
-
+        
         @keyframes flicker {
             0% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); }
             50% { opacity: 0.8; filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.9)) brightness(1.5); }
@@ -101,26 +63,19 @@
     </style>
 </head>
 <body>
-
 <div id="game-stage">
     <div id="main-screen">
-        <div id="main-rive-container">
-            <canvas id="main-rive-canvas"></canvas>
-        </div>
+        <div id="main-rive-container"><canvas id="main-rive-canvas"></canvas></div>
         <img src="btn_start.png" id="btn-start" alt="시작하기" onclick="startGame()">
     </div>
 
     <div id="bg-layer" class="ingame-ui"></div>
-    <div id="btn-close-wrap" class="ingame-ui" onclick="location.reload();">
-        <img src="close.png" alt="close">
-    </div>
+    <div id="btn-close-wrap" class="ingame-ui" onclick="location.reload();"><img src="close.png" alt="close"></div>
     
-    <div class="header-ui-container ingame-ui">
-        <div id="score-board">0m</div>
-        <div class="rate-capsule">
-            <img src="clover_s.png" class="ui-icon" alt="clover">
-            <span id="rate-board">0.00%</span>
-        </div>
+    <div id="score-board" class="ingame-ui">0m</div>
+    <div class="rate-capsule ingame-ui">
+        <img src="clover_s.png" class="ui-icon" alt="clover">
+        <span id="rate-board">0.00%</span>
     </div>
     
     <div id="canvas-container" class="ingame-ui"><canvas id="canvas"></canvas></div>
@@ -129,82 +84,52 @@
 </div>
 
 <script>
-// (게임 로직은 이전과 동일하게 유지하되, UI 위치 변화에 대응)
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
 
 let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverRate = 0, bgScrollY = 0;
 let isSuperJumping = false, riveInstance, mainRiveInstance, keys = {}, currentScale = 1;
-let platforms = [], motionTimer = 0, lastLoadedFile = "", mouseAnimFrame = 0;
-let isGameRunning = false;
+let platforms = [], motionTimer = 0, lastLoadedFile = "", mouseAnimFrame = 0, isGameRunning = false;
 
-const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), 
-      scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board'),
-      canvasCont = document.getElementById('canvas-container');
+const canvasCont = document.getElementById('canvas-container');
+const scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board');
 
-function loadMainRive() {
-    mainRiveInstance = new rive.Rive({ src: 'kongsik.riv', canvas: document.getElementById('main-rive-canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => { mainRiveInstance.resizeDrawingSurfaceToCanvas(); } });
-}
-
-function startGame() {
-    document.getElementById('main-screen').style.display = 'none';
-    document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'block');
-    if (mainRiveInstance) mainRiveInstance.cleanup();
-    isGameRunning = true;
-    initPlatforms();
-    loadRive('kongsik_ingame_air.riv');
-}
+function loadMainRive() { mainRiveInstance = new rive.Rive({ src: 'kongsik.riv', canvas: document.getElementById('main-rive-canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => mainRiveInstance.resizeDrawingSurfaceToCanvas() }); }
+function startGame() { document.getElementById('main-screen').style.display = 'none'; document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'block'); if (mainRiveInstance) mainRiveInstance.cleanup(); isGameRunning = true; initPlatforms(); loadRive('kongsik_ingame_air.riv'); }
 
 const setInput = (key, isDown, btn) => { keys[key] = isDown; if(btn) { btn.classList.toggle('ctrl-default', !isDown); btn.classList.toggle('ctrl-pressed', isDown); }};
-window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight); });
-window.addEventListener('keyup', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight); });
-const attachControl = (btn, key) => {
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
-    btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); });
-};
-attachControl(btnLeft, 'ArrowLeft'); attachControl(btnRight, 'ArrowRight');
+window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, document.getElementById('btn-left')); if (e.code === 'ArrowRight') setInput('ArrowRight', true, document.getElementById('btn-right')); });
+window.addEventListener('keyup', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, document.getElementById('btn-left')); if (e.code === 'ArrowRight') setInput('ArrowRight', false, document.getElementById('btn-right')); });
 
-function loadRive(fileName) {
-    if (lastLoadedFile === fileName) return;
-    lastLoadedFile = fileName;
-    if (riveInstance) riveInstance.cleanup();
-    riveInstance = new rive.Rive({ src: fileName, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); } });
-}
+function loadRive(f) { if (lastLoadedFile === f) return; lastLoadedFile = f; if (riveInstance) riveInstance.cleanup(); riveInstance = new rive.Rive({ src: f, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => riveInstance.resizeDrawingSurfaceToCanvas() }); }
 
-function createPlatformData(yPos) {
-    let distM = Math.floor(score * 0.01);
-    const rand = Math.random();
+function createPlatformData(y) {
+    let distM = Math.floor(score * 0.01), rand = Math.random();
     let sizeIdx = distM < 100 ? Math.floor(rand * 2) : Math.floor(rand * SIZES.length);
-    const width = SIZES[sizeIdx];
     let isBreakable = (rand < 0.15 + (Math.min(distM, 500) / 500) * 0.75);
     let moveType = (rand < Math.min(0.5, 0.1 + (0.4 * (distM / 500)))) ? (distM < 150 ? 'h' : (Math.random() > 0.5 ? 'h' : 'v')) : 'normal';
-    let canHaveMouse = (width >= 98) && (rand < 0.2); 
+    let canHaveMouse = (SIZES[sizeIdx] >= 98) && (rand < 0.2); 
     let itemType = (!canHaveMouse && rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
-    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[isBreakable?'wood':'block'][sizeIdx], isBreakable, durability: 1, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1, mouseSpeed: 0.7 + Math.random() * 0.6, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false, isTouched: false };
+    return { x: Math.random() * (393 - SIZES[sizeIdx]), y, baseY: y, w: SIZES[sizeIdx], h: 22, img: PLATFORM_TYPES[isBreakable?'wood':'block'][sizeIdx], isBreakable, durability: 1, hasMouse: canHaveMouse, mouseX: Math.random() * (SIZES[sizeIdx] - 72), mouseDir: Math.random() > 0.5 ? 1 : -1, mouseSpeed: 0.7 + Math.random() * 0.6, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false, isTouched: false };
 }
 
-function initPlatforms() {
-    document.querySelectorAll('.platform, .mouse-enemy, .game-item, .pickup-effect').forEach(el => el.remove());
-    score = 0; cloverRate = 0; isSuperJumping = false;
-    scoreEl.innerText = "0m"; rateEl.innerText = "0.00%";
-    bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
-    canvasCont.classList.remove('gold-glow');
-    platforms = []; 
-    let lastY = 752;
+function initPlatforms() { 
+    document.querySelectorAll('.platform, .mouse-enemy, .game-item, .pickup-effect').forEach(el => el.remove()); 
+    score = 0; cloverRate = 0; isSuperJumping = false; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0; 
+    canvasCont.classList.remove('gold-glow'); platforms = []; let lastY = 752;
     for (let i = 0; i < 7; i++) { lastY -= (100 + Math.random() * 100); platforms.push(createPlatformData(lastY)); }
-    platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
+    platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
 }
 
 function update() {
     if (!isGameRunning) { requestAnimationFrame(update); return; }
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    const limit = 393/2 - 43; posX = Math.max(-limit, Math.min(limit, posX));
+    posX = Math.max(-153, Math.min(153, posX));
     velocityY += isSuperJumping ? PHYSICS.gravity * 0.5 : PHYSICS.gravity;
     currentY += velocityY; mouseAnimFrame = (mouseAnimFrame + 1) % 20;
-    const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
-    
+    const charFootY = 752 + currentY, charLeft = 196 + posX - 25;
     if (isSuperJumping && velocityY >= 0) { isSuperJumping = false; canvasCont.classList.remove('gold-glow'); }
     
     platforms.forEach(p => {
@@ -224,18 +149,16 @@ function update() {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
                         cloverRate += 0.1; rateEl.innerText = `${cloverRate.toFixed(2)}%`;
-                        let eff = document.createElement('div'); eff.className = 'pickup-effect'; 
-                        eff.style.left = (ix + 25 - 80) + 'px'; eff.style.top = (iy - 40) + 'px'; 
+                        let eff = document.createElement('div'); eff.className = 'pickup-effect'; eff.style.left = (ix - 55) + 'px'; eff.style.top = (iy - 40) + 'px'; 
                         document.getElementById('game-stage').appendChild(eff);
-                        setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10);
-                        setTimeout(() => eff.remove(), 800);
-                    } else if (p.item === 'gold') { isSuperJumping = true; velocityY = PHYSICS.superJumpPower; canvasCont.classList.add('gold-glow'); loadRive('kongsik_ingame_air.riv'); }
+                        setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10); setTimeout(() => eff.remove(), 800);
+                    } else if (p.item === 'gold') { 
+                        isSuperJumping = true; velocityY = PHYSICS.superJumpPower; 
+                        canvasCont.classList.add('gold-glow'); loadRive('kongsik_ingame_air.riv'); 
+                    }
                 }
             }
-            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { 
-                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; 
-                if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; } 
-            }
+            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) { p.isBroken = true; } } }
         }
     });
 
@@ -243,27 +166,17 @@ function update() {
     if (currentY < -250) {
         let diff = -250 - currentY; currentY = -250; score += diff; scoreEl.innerText = Math.floor(score * 0.01) + "m";
         bgScrollY += diff; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (100 + Math.random() * 100))); p.isBroken = false; } });
+        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { let topY = Math.min(...platforms.map(pl => pl.y)); Object.assign(p, createPlatformData(topY - (100 + Math.random() * 100))); p.isBroken = false; } });
     }
     if (charFootY > 1050) initPlatforms();
-    document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
-    const stage = document.getElementById('game-stage');
+    canvasCont.style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     document.querySelectorAll('.platform, .mouse-enemy, .game-item').forEach(el => el.remove());
     platforms.forEach(p => {
         if (!p.isBroken) {
-            const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`;
-            stage.appendChild(d);
-            if (p.item && !p.itemCollected) {
-                const itemDiv = document.createElement('div'); itemDiv.className = 'game-item'; itemDiv.style.backgroundImage = `url('item_${p.item}.png')`; itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
-                stage.appendChild(itemDiv);
-            }
+            const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`; document.getElementById('game-stage').appendChild(d);
+            if (p.item && !p.itemCollected) { const it = document.createElement('div'); it.className = 'game-item'; it.style.backgroundImage = `url('item_${p.item}.png')`; it.style.left = (p.x + p.w/2 - 25) + 'px'; it.style.top = (p.y - 55) + 'px'; document.getElementById('game-stage').appendChild(it); }
         }
-        if (p.hasMouse) {
-            const m = document.createElement('div'); m.className = 'mouse-enemy';
-            const mouseImg = (p.mouseWaitTimer > 0 || p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
-            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
-            stage.appendChild(m);
-        }
+        if (p.hasMouse) { const m = document.createElement('div'); m.className = 'mouse-enemy'; m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`; document.getElementById('game-stage').appendChild(m); }
     });
     requestAnimationFrame(update);
 }
