@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 밸런스 패치</title>
+    <title>콩콩춘식 - 나무 발판 파괴 효과 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -17,8 +16,9 @@
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
-        .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
+        .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
+        .particle { position: absolute; z-index: 4; pointer-events: none; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
             z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -46,7 +46,7 @@ const SIZES = [138, 98, 58];
 
 let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
 let riveInstance, keys = {}, currentScale = 1;
-let platforms = [], motionTimer = 0, lastLoadedFile = "";
+let platforms = [], particles = [], motionTimer = 0, lastLoadedFile = "";
 let startTime = Date.now(), mouseAnimFrame = 0;
 
 const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), scoreEl = document.getElementById('score-board');
@@ -85,7 +85,6 @@ function createPlatformData(yPos) {
     const playTime = (Date.now() - startTime) / 1000;
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
-    
     let canHaveMouse = (width === 138) && !isBreakable && (rand < 0.2); 
 
     return {
@@ -95,16 +94,30 @@ function createPlatformData(yPos) {
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
         mouseWaitTimer: 0,
-        type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false,
-        isTouched: false // 밟았는지 여부 체크
+        type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false, isTouched: false
     };
 }
 
+// 터지는 효과를 위한 파편 생성 함수
+function spawnBreakParticles(x, y, width) {
+    for (let i = 0; i < 12; i++) {
+        particles.push({
+            x: x + Math.random() * width,
+            y: y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 1) * 8,
+            life: 1.0,
+            size: Math.random() * 6 + 4,
+            color: '#8D6E63' // 나무색
+        });
+    }
+}
+
 function initPlatforms() {
-    document.querySelectorAll('.platform, .mouse-enemy').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .mouse-enemy, .particle').forEach(el => el.remove());
     score = 0; scoreEl.innerText = "0m"; bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
     document.getElementById('game-stage').style.backgroundPositionY = '0px';
-    startTime = Date.now(); platforms = [];
+    startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
         lastY -= (160 + Math.random() * 40);
@@ -133,7 +146,7 @@ function update() {
         if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
         
         if (p.hasMouse) {
-            if (p.mouseWaitTimer > 0) { p.mouseWaitTimer--; } 
+            if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
             else {
                 p.mouseX += p.mouseDir * p.mouseSpeed;
                 if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) {
@@ -153,10 +166,25 @@ function update() {
             loadRive('kongsik_ingame_land.riv'); 
             velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
             motionTimer = PHYSICS.motionHold; 
-            p.isTouched = true; // 밟음 처리
-            if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; }
+            p.isTouched = true;
+            if (p.isBreakable) { 
+                p.durability--; 
+                if (p.durability <= 0) {
+                    p.isBroken = true;
+                    spawnBreakParticles(p.x, p.y, p.w); // ★ 터지는 효과 호출
+                }
+            }
         }
     });
+
+    // 파편 물리 업데이트
+    particles.forEach((part, idx) => {
+        part.x += part.vx;
+        part.y += part.vy;
+        part.vy += 0.4;
+        part.life -= 0.02;
+    });
+    particles = particles.filter(part => part.life > 0);
 
     if (motionTimer > 0) {
         motionTimer--;
@@ -165,13 +193,13 @@ function update() {
 
     if (currentY < -250) {
         let diff = -250 - currentY; currentY = -250; score += diff; 
-        // ★ 거리 표시 1/100로 축소
         scoreEl.innerText = Math.floor(score * 0.01) + "m";
         bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
         platforms.forEach(p => {
             p.y += diff;
             if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - 170)); p.isBroken = false; }
         });
+        particles.forEach(part => part.y += diff);
     }
 
     if (charFootY > 950) initPlatforms();
@@ -179,12 +207,20 @@ function update() {
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     
     const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .mouse-enemy').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .mouse-enemy, .particle').forEach(el => el.remove());
+    
+    // 파편 렌더링
+    particles.forEach(part => {
+        const pdiv = document.createElement('div');
+        pdiv.className = 'particle';
+        pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
+        stage.appendChild(pdiv);
+    });
+
     platforms.forEach(p => {
         if (p.isBroken) return;
         const d = document.createElement('div');
         d.className = 'platform'; 
-        // ★ 나무 발판을 밟으면 투명도 60% 적용
         let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
         d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
         stage.appendChild(d);
