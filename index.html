@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 컨트롤러 & 배경 패치</title>
+    <title>콩콩춘식 - 컨트롤러 이미지 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -47,6 +47,7 @@
             right: 30px;
             bottom: 40px;
         }
+        /* 초기 상태는 Default 이미지 */
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
     </style>
@@ -85,39 +86,37 @@ let currentY = 0, velocityY = 0, posX = 0;
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], motionTimer = 0, lastLoadedFile = "";
 
-// --- 컨트롤러 로직 ---
+// --- 컨트롤러 로직 업데이트 ---
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 
-function handleControl(btn, key, isDown) {
-    if (isDown) {
-        keys[key] = true;
+function setBtnState(btn, isPressed) {
+    if (isPressed) {
         btn.classList.remove('ctrl-default');
         btn.classList.add('ctrl-pressed');
     } else {
-        keys[key] = false;
         btn.classList.remove('ctrl-pressed');
         btn.classList.add('ctrl-default');
     }
 }
 
-// 터치 이벤트
-btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleControl(btnLeft, 'ArrowLeft', true); });
-btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleControl(btnLeft, 'ArrowLeft', false); });
-btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleControl(btnRight, 'ArrowRight', true); });
-btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleControl(btnRight, 'ArrowRight', false); });
+// 터치 이벤트 (모바일용)
+btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowLeft'] = true; setBtnState(btnLeft, true); });
+btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowLeft'] = false; setBtnState(btnLeft, false); });
+btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowRight'] = true; setBtnState(btnRight, true); });
+btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowRight'] = false; setBtnState(btnRight, false); });
 
-// 키보드 연동을 위한 클래스 제어
+// 키보드 이벤트 (PC용)
 window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft') handleControl(btnLeft, 'ArrowLeft', true);
-    if (e.code === 'ArrowRight') handleControl(btnRight, 'ArrowRight', true);
+    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = true; setBtnState(btnLeft, true); }
+    if (e.code === 'ArrowRight') { keys['ArrowRight'] = true; setBtnState(btnRight, true); }
 });
 window.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowLeft') handleControl(btnLeft, 'ArrowLeft', false);
-    if (e.code === 'ArrowRight') handleControl(btnRight, 'ArrowRight', false);
+    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = false; setBtnState(btnLeft, false); }
+    if (e.code === 'ArrowRight') { keys['ArrowRight'] = false; setBtnState(btnRight, false); }
 });
 
-// --- 기존 게임 로직 유지 ---
+// --- Rive 및 게임 물리 로직 ---
 function loadRive(fileName) {
     if (lastLoadedFile === fileName) return;
     lastLoadedFile = fileName;
