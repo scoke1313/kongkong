@@ -41,14 +41,14 @@
 </div>
 
 <script>
-// --- 물리 파라미터 (높이는 유지, 속도만 0.8배 감속) ---
+// --- 물리 파라미터 (속도 10 -> 9 반영) ---
 const PHYSICS = {
-    gravity: 0.65,      // [수정] 0.9 * 0.72 (체공 시간 증가)
-    jumpPower: -17,     // [수정] -21 * 0.8 (상승 속도 감소)
+    gravity: 0.81,      // 0.9 * 0.9 (가속도 감속)
+    jumpPower: -18.9,   // -21 * 0.9 (상승 속도 감속)
     moveSpeed: 7,
     stageWidth: 393,
     stageHeight: 852,
-    motionHold: 15      // 속도가 느려진 만큼 모션 유지 시간 살짝 증가
+    motionHold: 12      // 0.2초 유지
 };
 
 let currentY = 0;       
@@ -86,22 +86,29 @@ loadRive('kongsik_ingame_air.riv');
 initPlatforms();
 
 function update() {
+    // 1. 이동
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
     const limit = (PHYSICS.stageWidth / 2) - 43;
     if (posX < -limit) posX = -limit;
     if (posX > limit) posX = limit;
 
+    // 2. 물리 엔진
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
+    // 3. 모션 상태 관리 (우선순위: 발판 접촉 시 land -> 이후 air 유지)
     if (motionTimer > 0) {
         motionTimer--;
-        loadRive('kongsik_ingame_air.riv');
+        // 밟은 직후가 아니면 air 모션 유지
+        if (motionTimer < PHYSICS.motionHold - 1) {
+            loadRive('kongsik_ingame_air.riv');
+        }
     } else if (velocityY > 2) {
         loadRive('kongsik_ingame_land.riv');
     }
 
+    // 4. 발판 충돌 판정 및 land 모션 즉시 출력
     const charFootY = 752 + currentY; 
     const charLeft = (393 / 2) + posX - 25;
 
@@ -110,14 +117,17 @@ function update() {
             if (charLeft + 50 > p.x && charLeft < p.x + 80 &&
                 charFootY >= p.y && charFootY <= p.y + 15) {
                 
+                // [핵심] 닿자마자 무조건 land 모션 먼저 출력
+                loadRive('kongsik_ingame_land.riv');
+                
                 velocityY = PHYSICS.jumpPower; 
                 currentY = p.y - 752; 
-                motionTimer = PHYSICS.motionHold; 
-                loadRive('kongsik_ingame_air.riv');
+                motionTimer = PHYSICS.motionHold; // 타이머 시작 (이후에 air로 전환됨)
             }
         });
     }
 
+    // 5. 무한 스크롤
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
@@ -130,6 +140,7 @@ function update() {
         });
     }
 
+    // 6. 추락 시 리셋
     if (charFootY > 900) {
         currentY = 0;
         velocityY = PHYSICS.jumpPower; 
@@ -137,6 +148,7 @@ function update() {
         loadRive('kongsik_ingame_air.riv');
     }
 
+    // 7. 결과 출력
     document.getElementById('canvas-container').style.transform = 
         `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
 
