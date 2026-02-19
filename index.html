@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 랜덤 맵 & 빌런 포즈 패치</title>
+    <title>콩콩춘식 - 점프 가능 범위 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -90,8 +90,7 @@ function createPlatformData(yPos) {
     return {
         x: Math.random() * (393 - width), y: yPos, w: width, h: 22,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
-        isBreakable: isBreakable, 
-        durability: isBreakable ? 1 : 999, // ★ 나무 발판 내구도를 1로 수정
+        isBreakable: isBreakable, durability: isBreakable ? 1 : 999,
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
         mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
@@ -116,8 +115,8 @@ function initPlatforms() {
     startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
-        // ★ 초기 발판 간격 랜덤성 강화 (130px~250px)
-        lastY -= (130 + Math.random() * 120); 
+        // ★ 최소 100px, 최대 210px 간격으로 배치
+        lastY -= (100 + Math.random() * 110); 
         platforms.push(createPlatformData(lastY));
     }
     platforms.push({ x: 393/2-69, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false });
@@ -156,8 +155,7 @@ function update() {
                     velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
                 }
             } else {
-                p.mouseVY += 0.6;
-                p.mouseYOffset += p.mouseVY;
+                p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY;
             }
         }
 
@@ -191,8 +189,8 @@ function update() {
         platforms.forEach(p => {
             p.y += diff;
             if (p.y > 852) { 
-                // ★ 생성되는 발판 간격 랜덤성 강화 (140px~240px)
-                let randomGap = 140 + Math.random() * 100;
+                // ★ 발판 재생성 시에도 최대 간격을 210px로 제한
+                let randomGap = 100 + Math.random() * 110;
                 Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); 
                 p.isBroken = false; 
             }
@@ -225,7 +223,6 @@ function update() {
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            // ★ 추락 시(isBroken) 항상 서 있는 모습(mouse2.png)으로 출력
             const mouseImg = (p.mouseWaitTimer > 0 || p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
             m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
