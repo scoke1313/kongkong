@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 배경 통합 패치 (롤백)</title>
+    <title>콩콩춘식 - 컨트롤러 이미지 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,13 +13,6 @@
             background: #FFFDF5; 
             overflow: hidden; 
         }
-        /* 배경 캔버스 (타일 및 벽돌용) */
-        #bg-canvas {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: 1;
-        }
         #canvas-container {
             position: absolute;
             width: 86px;
@@ -29,55 +22,57 @@
             margin-left: -43px; 
             z-index: 10;
         }
-        #char-canvas { width: 100%; height: 100%; }
-        .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; z-index: 5; }
+        canvas { width: 100%; height: 100%; }
+        
+        .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+
+        /* 컨트롤러 스타일 */
         .controller {
-            position: absolute; width: 80px; height: 80px;
-            background-size: contain; background-repeat: no-repeat;
-            z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            z-index: 50;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
-        #btn-right { right: 30px; bottom: 40px; }
+        #btn-left {
+            left: 30px;
+            bottom: 40px;
+            transform: scaleX(-1);
+        }
+        #btn-right {
+            right: 30px;
+            bottom: 40px;
+        }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
-        #score-board {
-            position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold;
-            color: #5c3e34; z-index: 100; font-family: sans-serif;
-        }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
-    <canvas id="bg-canvas"></canvas>
-    <div id="score-board">0m</div>
-    <div id="canvas-container"><canvas id="char-canvas"></canvas></div>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
 const PHYSICS = {
-    gravity: 0.81, jumpPower: -18.9, moveSpeed: 7,
-    stageWidth: 393, stageHeight: 852, motionHold: 12,
-    minGap: 150, maxGap: 190 
+    gravity: 0.81,      
+    jumpPower: -18.9,   
+    moveSpeed: 7,
+    stageWidth: 393,
+    stageHeight: 852,
+    motionHold: 12,
+    minGap: 150,
+    maxGap: 190 
 };
-
-// 배경 리소스 설정
-const bgCanvas = document.getElementById('bg-canvas');
-const bgCtx = bgCanvas.getContext('2d');
-bgCanvas.width = 393;
-bgCanvas.height = 852;
-
-const imgBgTile = new Image(); imgBgTile.src = 'bg_ingame.jpg';
-const bgImgFiles = ['bg_block_1.png', 'bg_block_2.png', 'bg_block_3.png', 'bg_block_4.png', 'bg_block_5.png'];
-const bgImages = bgImgFiles.map(src => { const img = new Image(); img.src = src; return img; });
-
-let bgPattern = null;
-let bgScrollY = 0;
-let bgBricks = [];
-
-imgBgTile.onload = () => { bgPattern = bgCtx.createPattern(imgBgTile, 'repeat'); };
 
 const PLATFORM_TYPES = {
     wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'],
@@ -86,39 +81,35 @@ const PLATFORM_TYPES = {
 const SIZES = [138, 98, 58];
 const PLATFORM_H = 22;
 
-let currentY = 0, velocityY = 0, posX = 0, score = 0;
+let currentY = 0, velocityY = 0, posX = 0;
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], motionTimer = 0, lastLoadedFile = "";
 
-// 배경 벽돌 로직 (정수 좌표로 그려서 밀림 방지)
-function drawBrick(brick) {
-    if (brick.img.complete) {
-        bgCtx.drawImage(brick.img, Math.floor(brick.x), Math.floor(brick.y), brick.img.width/2, brick.img.height/2);
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+
+function setBtnState(btn, isPressed) {
+    if (isPressed) {
+        btn.classList.remove('ctrl-default');
+        btn.classList.add('ctrl-pressed');
+    } else {
+        btn.classList.remove('ctrl-pressed');
+        btn.classList.add('ctrl-default');
     }
 }
 
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
-const scoreEl = document.getElementById('score-board');
-
-function setBtnState(btn, isPressed) {
-    btn.classList.toggle('ctrl-default', !isPressed);
-    btn.classList.toggle('ctrl-pressed', isPressed);
-}
-
-const handleInput = (key, isDown, btn) => { keys[key] = isDown; setBtnState(btn, isDown); };
-btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowLeft', true, btnLeft); });
-btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnLeft); });
-btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnRight); });
-btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnRight); });
+btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowLeft'] = true; setBtnState(btnLeft, true); });
+btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowLeft'] = false; setBtnState(btnLeft, false); });
+btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowRight'] = true; setBtnState(btnRight, true); });
+btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowRight'] = false; setBtnState(btnRight, false); });
 
 window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', true, btnLeft);
-    if (e.code === 'ArrowRight') handleInput('ArrowRight', true, btnRight);
+    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = true; setBtnState(btnLeft, true); }
+    if (e.code === 'ArrowRight') { keys['ArrowRight'] = true; setBtnState(btnRight, true); }
 });
 window.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', false, btnLeft);
-    if (e.code === 'ArrowRight') handleInput('ArrowRight', false, btnRight);
+    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = false; setBtnState(btnLeft, false); }
+    if (e.code === 'ArrowRight') { keys['ArrowRight'] = false; setBtnState(btnRight, false); }
 });
 
 function loadRive(fileName) {
@@ -126,8 +117,10 @@ function loadRive(fileName) {
     lastLoadedFile = fileName;
     if (riveInstance) riveInstance.cleanup();
     riveInstance = new rive.Rive({
-        src: fileName, canvas: document.getElementById('char-canvas'),
-        autoplay: true, stateMachines: 'State Machine 1',
+        src: fileName,
+        canvas: document.getElementById('canvas'),
+        autoplay: true,
+        stateMachines: 'State Machine 1',
         onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
     });
 }
@@ -135,43 +128,36 @@ function loadRive(fileName) {
 function createPlatformData(yPos) {
     const sizeIdx = Math.floor(Math.random() * SIZES.length);
     const width = SIZES[sizeIdx];
-    let woodProbability = Math.min(0.05 + (score / 6000) * 0.85, 0.9);
-    const isWood = Math.random() < woodProbability;
-    
-    if (Math.random() < 0.15) {
-        const img = bgImages[Math.floor(Math.random() * bgImages.length)];
-        const bW = img.width / 2;
-        bgBricks.push({
-            img: img,
-            x: Math.random() * (PHYSICS.stageWidth + bW) - bW,
-            y: yPos - 100
-        });
-    }
+    const rand = Math.random();
+    const isBlock = rand < 0.25;
+    const typeKey = isBlock ? 'block' : 'wood';
+    let moveType = (rand > 0.9) ? 'h' : (rand > 0.8 ? 'v' : 'normal');
 
     return {
         x: Math.random() * (PHYSICS.stageWidth - width),
-        y: yPos, w: width, h: PLATFORM_H,
-        img: PLATFORM_TYPES[isWood ? 'wood' : 'block'][sizeIdx],
-        isWood: isWood, durability: isWood ? 2 : 999,
-        type: (Math.random() > 0.9) ? 'h' : 'normal',
+        y: yPos,
+        w: width,
+        h: PLATFORM_H,
+        img: PLATFORM_TYPES[typeKey][sizeIdx],
+        isBlock: isBlock,
+        durability: isBlock ? 2 : 999,
+        type: moveType,
         speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
+        offset: Math.random() * Math.PI * 2,
+        initialY: yPos,
         isBroken: false
     };
 }
 
 function initPlatforms() {
-    score = 0; scoreEl.innerText = "0m";
-    platforms = []; bgBricks = []; bgScrollY = 0;
-    for(let i=0; i<3; i++) {
-        const img = bgImages[Math.floor(Math.random() * bgImages.length)];
-        bgBricks.push({ img: img, x: Math.random() * 300, y: Math.random() * 800 });
-    }
+    platforms = [];
     let lastY = 752;
     for (let i = 0; i < 5; i++) {
-        lastY -= (PHYSICS.minGap + Math.random() * 40);
+        const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+        lastY -= nextGap;
         platforms.push(createPlatformData(lastY));
     }
-    platforms.push({ x: 127, y: 752, w: 138, h: 22, img: 'block_1.png', isWood: false, durability: 999, type: 'normal' }); 
+    platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'wood_1.png', isBlock: false, durability: 999, type: 'normal' }); 
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -180,31 +166,28 @@ initPlatforms();
 function update() {
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    posX = Math.max(-153.5, Math.min(153.5, posX));
+    
+    const limit = (PHYSICS.stageWidth / 2) - 43;
+    if (posX < -limit) posX = -limit;
+    if (posX > limit) posX = limit;
 
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
-    if (bgPattern) {
-        bgCtx.save();
-        bgCtx.translate(0, Math.floor(bgScrollY % 512)); 
-        bgCtx.fillStyle = bgPattern;
-        bgCtx.fillRect(0, -512, bgCanvas.width, bgCanvas.height + 1024);
-        bgCtx.restore();
-    }
-    bgBricks.forEach(drawBrick);
-
     platforms.forEach(p => {
-        if (!p.isBroken && p.type === 'h') {
+        if (p.isBroken) return;
+        if (p.type === 'h') {
             p.x += p.speed;
             if (p.x <= 0 || p.x + p.w >= PHYSICS.stageWidth) p.speed *= -1;
+        } else if (p.type === 'v') {
+            p.offset += 0.04;
+            p.y = p.initialY + Math.sin(p.offset) * 25;
         }
     });
 
     if (motionTimer > 0) {
         motionTimer--;
-        if (motionTimer < 10) loadRive('kongsik_ingame_air.riv');
+        if (motionTimer < PHYSICS.motionHold - 2) loadRive('kongsik_ingame_air.riv');
     } else if (velocityY > 2) {
         loadRive('kongsik_ingame_land.riv');
     }
@@ -219,41 +202,43 @@ function update() {
                 loadRive('kongsik_ingame_land.riv');
                 velocityY = PHYSICS.jumpPower; 
                 currentY = p.y - 752; 
-                motionTimer = 12; 
-                if (p.isWood) {
-                    p.durability--;
-                    if (p.durability <= 0) p.isBroken = true;
-                }
+                motionTimer = PHYSICS.motionHold; 
+                p.durability--;
+                if (p.durability <= 0) p.isBroken = true;
             }
         });
     }
 
     if (currentY < -250) {
-        const diff = -250 - currentY;
+        let diff = -250 - currentY;
         currentY = -250;
-        score += Math.floor(diff);
-        scoreEl.innerText = score + "m";
-        
-        bgScrollY += diff; 
-        bgBricks.forEach(b => { b.y += diff; });
         platforms.forEach(p => {
             p.y += diff;
+            if (p.initialY !== undefined) p.initialY += diff;
             if (p.y > PHYSICS.stageHeight) {
                 const highestY = Math.min(...platforms.map(plat => plat.y));
-                Object.assign(p, createPlatformData(highestY - 170));
+                const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+                const newData = createPlatformData(highestY - nextGap);
+                Object.assign(p, newData);
+                p.isBroken = false; 
             }
         });
-        bgBricks = bgBricks.filter(b => b.y < PHYSICS.stageHeight + 200);
     }
 
     if (charFootY > 950) {
-        initPlatforms();
         currentY = 0; velocityY = PHYSICS.jumpPower; 
+        initPlatforms();
         loadRive('kongsik_ingame_air.riv');
     }
 
-    document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
-    
+    document.getElementById('canvas-container').style.transform = 
+        `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
+
+    renderPlatforms();
+    requestAnimationFrame(update);
+}
+
+function renderPlatforms() {
     const stage = document.getElementById('game-stage');
     const existing = document.querySelectorAll('.platform');
     existing.forEach(el => el.remove());
@@ -261,16 +246,16 @@ function update() {
         if (p.isBroken) return;
         const div = document.createElement('div');
         div.className = 'platform';
-        div.style.left = Math.floor(p.x) + 'px'; 
-        div.style.top = Math.floor(p.y) + 'px';
-        div.style.width = p.w + 'px'; div.style.height = 22 + 'px';
+        div.style.left = p.x + 'px';
+        div.style.top = p.y + 'px';
+        div.style.width = p.w + 'px';
+        div.style.height = p.h + 'px';
         div.style.backgroundImage = `url('${p.img}')`;
-        if (p.isWood && p.durability === 1) div.style.opacity = '0.6';
+        if (p.isBlock && p.durability === 1) div.style.opacity = '0.7';
         stage.appendChild(div);
     });
-
-    requestAnimationFrame(update);
 }
+
 update();
 </script>
 </body>
