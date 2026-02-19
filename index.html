@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 나무 발판 파괴 효과 패치</title>
+    <title>콩콩춘식 - 초강력 넉백 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -98,7 +98,6 @@ function createPlatformData(yPos) {
     };
 }
 
-// 터지는 효과를 위한 파편 생성 함수
 function spawnBreakParticles(x, y, width) {
     for (let i = 0; i < 12; i++) {
         particles.push({
@@ -108,7 +107,7 @@ function spawnBreakParticles(x, y, width) {
             vy: (Math.random() - 1) * 8,
             life: 1.0,
             size: Math.random() * 6 + 4,
-            color: '#8D6E63' // 나무색
+            color: '#8D6E63'
         });
     }
 }
@@ -157,8 +156,10 @@ function update() {
                 }
             }
             let mx = p.x + p.mouseX, my = p.y - 35;
+            // ★ 쥐돌이 충돌 넉백 강화 (10 -> 15)
             if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
-                velocityY = -10; posX += (posX > (mx - p.x) ? 40 : -40); 
+                velocityY = -15; // 기존 -10에서 강화
+                posX += (posX > (mx - p.x) ? 60 : -60); // 기존 40에서 강화
             }
         }
 
@@ -171,18 +172,14 @@ function update() {
                 p.durability--; 
                 if (p.durability <= 0) {
                     p.isBroken = true;
-                    spawnBreakParticles(p.x, p.y, p.w); // ★ 터지는 효과 호출
+                    spawnBreakParticles(p.x, p.y, p.w); 
                 }
             }
         }
     });
 
-    // 파편 물리 업데이트
     particles.forEach((part, idx) => {
-        part.x += part.vx;
-        part.y += part.vy;
-        part.vy += 0.4;
-        part.life -= 0.02;
+        part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02;
     });
     particles = particles.filter(part => part.life > 0);
 
@@ -209,7 +206,6 @@ function update() {
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .mouse-enemy, .particle').forEach(el => el.remove());
     
-    // 파편 렌더링
     particles.forEach(part => {
         const pdiv = document.createElement('div');
         pdiv.className = 'particle';
