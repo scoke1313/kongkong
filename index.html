@@ -2,87 +2,106 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>춘식이 모션 전환 테스트</title>
+  <title>춘식이 점프 물리 테스트</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
-    body { margin: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #eee; font-family: sans-serif; }
-    /* 86x138 필승 규격 */
-    #chunCanvas { width: 86px !important; height: 138px !important; background: white; border: 2px solid #FEE500; }
-    .controls { margin-top: 20px; text-align: center; }
+    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #A1C4FD; }
+    #container { position: relative; width: 480px; height: 800px; background: white; overflow: hidden; border: 2px solid #fff; }
+    
+    /* 필승 비법: 86x138 투명 캔버스 */
+    #chunCanvas { 
+      position: absolute; 
+      width: 86px !important; 
+      height: 138px !important; 
+      z-index: 2; 
+      pointer-events: none;
+    }
+    .info { position: absolute; top: 10px; width: 100%; text-align: center; color: #333; font-weight: bold; z-index: 10; }
   </style>
 </head>
 <body>
-
-  <canvas id="chunCanvas"></canvas>
-  
-  <div class="controls">
-    <p id="status">로딩 중...</p>
-    <p>화면을 클릭하거나 <b>스페이스바</b>를 눌러보세요!</p>
+  <div id="container">
+    <div class="info" id="status">캐릭터 로딩 중...</div>
+    <canvas id="chunCanvas"></canvas>
   </div>
 
   <script>
     const canvas = document.getElementById('chunCanvas');
     const statusText = document.getElementById('status');
     let landRive, airRive, currentRive;
-    let isAir = false;
+    let landReady = false, airReady = false;
 
-    // 1. 개별 로드 (사라짐 방지 필살기)
+    // 1. 물리 변수 설정 (0.7초 체류 점프 기반)
+    let jumpPower = -15; // 점프 힘
+    let gravity = 0.6;   // 중력
+    let p = { x: 197, y: 600, vy: jumpPower }; // 위치 및 속도
+    let isRunning = false;
+
+    // 2. 리브 파일 개별 로드 (필승 비법)
     function init() {
       landRive = new rive.Rive({
-        src: 'kongsik_ingame_land.riv',
+        [cite_start]src: 'kongsik_ingame_land.riv', [cite: 1378]
         canvas: canvas,
         artboard: 'Artboard',
         stateMachines: 'State Machine 1',
         autoplay: false,
-        onLoad: () => { checkReady(); }
+        onLoad: () => { 
+          landRive.resizeDrawingSurfaceToCanvas();
+          landReady = true; checkStart(); 
+        }
       });
 
       airRive = new rive.Rive({
-        src: 'kongsik_ingame_air.riv',
+        [cite_start]src: 'kongsik_ingame_air.riv', [cite: 1090]
         canvas: canvas,
         artboard: 'Artboard',
         stateMachines: 'State Machine 1',
         autoplay: false,
-        onLoad: () => { checkReady(); }
+        onLoad: () => { 
+          airRive.resizeDrawingSurfaceToCanvas();
+          airReady = true; checkStart(); 
+        }
       });
     }
 
-    let loaded = 0;
-    function checkReady() {
-      loaded++;
-      if(loaded === 2) {
-        statusText.innerText = "준비 완료! 현재: 착지(LAND) 모션";
-        landRive.resizeDrawingSurfaceToCanvas();
-        airRive.resizeDrawingSurfaceToCanvas();
-        currentRive = landRive;
-        currentRive.play(); // 첫 모션 재생
+    function checkStart() {
+      if(landReady && airReady) {
+        statusText.innerText = "화면을 클릭하면 점프 시작! 🐯";
+        window.addEventListener('mousedown', () => { if(!isRunning) { isRunning = true; loop(); } });
       }
     }
 
-    // 2. 모션 교체 함수 (사용자님의 점프 로직에 들어갈 핵심)
-    function toggleMotion() {
-      if(loaded < 2) return;
+    // 3. 게임 루프 (상승/하강에 따른 모션 스위칭)
+    function loop() {
+      // 물리 연산
+      p.vy += gravity; 
+      p.y += p.vy;
 
-      isAir = !isAir;
-      
-      // 이전 모션 멈춤 (pause 사용으로 캐릭터 증발 방지)
-      if (currentRive) currentRive.pause();
+      // 바닥에 닿으면 다시 점프 (임시 바닥 700px)
+      if (p.y > 600) {
+        p.y = 600;
+        p.vy = jumpPower;
 
-      if (isAir) {
-        currentRive = airRive;
-        statusText.innerText = "현재: 공중(AIR) 모션";
-      } else {
+        // [모션 교체] 바닥에 닿는 순간 LAND 모션 1회 재생
         currentRive = landRive;
-        currentRive.scrub("State Machine 1", 0); // 처음부터 한 번만 재생
-        statusText.innerText = "현재: 착지(LAND) 모션";
+        currentRive.scrub("State Machine 1", 0); // 처음으로 리셋
+        currentRive.play("State Machine 1");
       }
 
-      currentRive.play();
-    }
+      // [모션 교체] 위로 올라가는 중일 때는 AIR 모션 유지
+      if (p.vy < 0 && p.y < 580) { // 바닥에서 살짝 떨어졌을 때 전환
+        if (currentRive !== airRive) {
+          currentRive = airRive;
+          currentRive.play(); 
+        }
+      }
 
-    // 입력 이벤트 등록
-    window.addEventListener('mousedown', toggleMotion);
-    window.addEventListener('keydown', (e) => { if(e.code === 'Space') toggleMotion(); });
+      // 캔버스 위치 업데이트
+      canvas.style.left = p.x + 'px';
+      canvas.style.top = p.y + 'px';
+
+      requestAnimationFrame(loop);
+    }
 
     init();
   </script>
