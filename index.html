@@ -1,46 +1,121 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>춘식이 띄우기 테스트</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>콩콩춘식 - 인게임 복구 완료</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
-    body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #f0f0f0;
-    }
-    /* 캐릭터 규격 86x112 강제 고정 */
-    canvas {
-      width: 86px;
-      height: 112px;
-      background-color: white; /* 캔버스 영역 확인용 */
-      border: 1px solid red;   /* 캔버스 경계선 확인용 */
-    }
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
+    #game{position:relative;width:100%;max-width:480px;height:100%;max-height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
+    canvas{width:100%;height:100%;display:block}
+    #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
+    .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
+    .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
+    .hidden{display:none!important}
   </style>
 </head>
 <body>
+<div id="game">
+  <div id="hud">금리: <span id="rate">2.0</span>%</div>
+  <canvas id="cv"></canvas>
+  <div id="start" class="overlay">
+    <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
+    <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">캐릭터 로딩 중...</div>
+    <button class="btn hidden" id="btnStart">게임 시작</button>
+  </div>
+</div>
 
-  <canvas id="kongsik-canvas"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const btnStart = document.getElementById('btnStart');
+  const status = document.getElementById('status');
 
-  <script>
-    const r = new rive.Rive({
-      src: 'kongsik_ingame.riv',        //
-      canvas: document.getElementById('kongsik-canvas'),
-      artboard: 'Artboard',             //
-      stateMachines: 'State Machine 1', //
-      autoplay: true,
-      onLoad: () => {
-        console.log("로드 성공");
-        r.resizeDrawingSurfaceToCanvas();
-      },
-      onLoadError: () => {
-        console.error("로드 실패: 파일 경로를 확인하세요.");
-      }
+  function resize(){ canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
+  window.addEventListener('resize', resize); resize();
+
+  let kongsikLoaded = false;
+  let rInstance = null;
+
+  // 메인 캔버스에 직접 Rive 연결
+  rInstance = new rive.Rive({
+    src: 'kongsik_ingame.riv',        // 
+    canvas: canvas,                    // 게임 캔버스에 직접 그림
+    artboard: 'Artboard',             // 
+    stateMachines: 'State Machine 1', // [cite: 67]
+    autoplay: false,                   // 처음엔 멈춰둠
+    layout: new rive.Layout({ fit: rive.Fit.Contain, alignment: rive.Alignment.Center }),
+    onLoad: () => {
+      kongsikLoaded = true;
+      status.innerText = "준비 완료! 🐯";
+      btnStart.classList.remove('hidden');
+    }
+  });
+
+  let p = { x: 0, y: 0, vx: 0, vy: -12 }, isRunning = false, lastTime = 0, lastDir = 1;
+  const keys = { left: false, right: false };
+  let platforms = [];
+
+  window.addEventListener('keydown', e => { 
+    if(e.code==='ArrowLeft'){keys.left=true; lastDir=1;} 
+    if(e.code==='ArrowRight'){keys.right=true; lastDir=-1;} 
+  });
+  window.addEventListener('keyup', e => { if(e.code==='ArrowLeft')keys.left=false; if(e.code==='ArrowRight')keys.right=false; });
+
+  function reset() {
+    p.x = canvas.width / 2; p.y = canvas.height - 200; p.vx = 0; p.vy = -12;
+    platforms = [];
+    for(let i=0; i<8; i++) platforms.push({ x: Math.random()*(canvas.width-120), y: canvas.height-70-i*92 });
+  }
+
+  function loop(now) {
+    if(!isRunning) return;
+    let dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    // 1. 물리 계산
+    if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
+    p.x += p.vx; p.vy += 0.45; p.y += p.vy;
+    if(p.x < -30) p.x = canvas.width + 30; if(p.x > canvas.width + 30) p.x = -30;
+
+    // 2. 배경 및 발판 그리기
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#9CCC65"; //
+    platforms.forEach(pl => {
+      ctx.fillRect(pl.x, pl.y, 120, 15);
+      if(p.vy > 0 && p.x > pl.x-15 && p.x < pl.x+135 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) p.vy = -12.5;
     });
-  </script>
+
+    if(p.y < canvas.height/2 && p.vy < 0) {
+      let dy = -p.vy; p.y += dy;
+      platforms.forEach(pl => { pl.y += dy; if(pl.y > canvas.height) { pl.y -= 92*8; pl.x = Math.random()*(canvas.width-120); } });
+    }
+
+    // 3. 춘식이 위치 업데이트 (직접 렌더링 방식이므로 좌표만 넘김)
+    // Rive의 draw는 내부적으로 처리되므로, 캐릭터의 위치를 rInstance를 통해 제어하거나
+    // 가이드처럼 캔버스를 매 프레임 Rive가 그리도록 강제함
+    rInstance.layout = new rive.Layout({
+        fit: rive.Fit.Contain,
+        alignment: rive.Alignment.Center,
+        minX: p.x - 43, minY: p.y - 56, maxX: p.x + 43, maxY: p.y + 56 //  86x112 규격
+    });
+
+    if(p.y > canvas.height + 100) reset();
+    requestAnimationFrame(loop);
+  }
+
+  btnStart.onclick = () => {
+    document.getElementById('start').classList.add('hidden');
+    isRunning = true;
+    reset();
+    rInstance.play(); // [cite: 67]
+    lastTime = performance.now();
+    loop(performance.now());
+  };
+})();
+</script>
 </body>
 </html>
