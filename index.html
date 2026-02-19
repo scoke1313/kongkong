@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 하드코어 비율 패치</title>
+    <title>콩콩춘식 - 초반 안심 케어 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -79,18 +79,22 @@ function loadRive(fileName) {
 }
 
 function createPlatformData(yPos) {
-    const sizeIdx = Math.floor(Math.random() * SIZES.length);
-    const width = SIZES[sizeIdx];
-    const rand = Math.random();
     let distM = Math.floor(score * 0.01);
+    const rand = Math.random();
 
-    // ★ 나무 발판 비율: 0m(20%) -> 500m(90%) 점진적 증가
+    // ★ 30m 이전에는 가장 긴 발판(SIZES[0]=138px)만 나오게 설정
+    let sizeIdx = distM < 30 ? 0 : Math.floor(rand * SIZES.length);
+    const width = SIZES[sizeIdx];
+    
+    // 나무 발판 비율 로직 (0m: 20% -> 500m: 90%)
     let woodProb = 0.2 + (Math.min(distM, 500) / 500) * 0.7;
     let isBreakable = rand < woodProb;
     const typeKey = isBreakable ? 'wood' : 'block';
+
+    // 쥐돌이 출현 조건
     let canHaveMouse = (width === 138) && (rand < 0.2); 
 
-    // ★ 이동 발판: 상하 이동은 100m부터 출연
+    // 이동 발판 로직 (100m부터 상하 이동 등장)
     let moveProb = distM < 100 ? 0.05 : Math.min(0.4, 0.05 + (0.35 * ((distM - 100) / 400)));
     let moveType = 'normal';
     if (rand < moveProb) {
@@ -129,7 +133,7 @@ function initPlatforms() {
     startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) {
-        lastY -= (50 + Math.random() * 160); 
+        lastY -= (100 + Math.random() * 110); 
         platforms.push(createPlatformData(lastY));
     }
     platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
@@ -184,10 +188,7 @@ function update() {
                 p.isTouched = true;
                 if (p.isBreakable) { 
                     p.durability--; 
-                    if (p.durability <= 0) {
-                        p.isBroken = true;
-                        spawnBreakParticles(p.x, p.y, p.w); 
-                    }
+                    if (p.durability <= 0) { p.isBroken = true; spawnBreakParticles(p.x, p.y, p.w); }
                 }
             }
         } else if (p.hasMouse) {
