@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 네비게이션 원본 사이즈 배치 패치</title>
+    <title>콩콩춘식 - 네비게이션 최종 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,14 +13,14 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 네비게이션: 이미지 원본(393x60) 그대로 상단 배치 --- */
+        /* --- 상단 네비게이션 바 (이미지 원본 393x60 그대로 최상단 배치) --- */
         #nav-bar {
             position: absolute; 
             top: 0; 
             left: 0; 
             width: 393px; 
             height: 60px;
-            z-index: 9999; /* 화면 가장 맨 위 */
+            z-index: 9999; /* 화면 최상단 */
             cursor: pointer;
         }
         
@@ -30,7 +30,7 @@
             display: block;
         }
 
-        /* UI 위치 (네비게이션 영역 아래로 배치) */
+        /* UI 위치 조정 (네비게이션 바 60px 영역 아래) */
         #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
         #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
@@ -74,15 +74,16 @@
     </div>
 
     <div id="score-board">0m</div>
-    <div id="rate-board">Rate: +0.00%</div>
-
+    <div id="rate-board">Rate: +0.00%</div> 
+    
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
+    
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
-// 모든 게임 로직은 건드리지 않고 그대로 유지합니다.
+// 자바스크립트 로직 유지 (클로버 위치 수정 없음)
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
@@ -102,8 +103,14 @@ const setInput = (key, isDown, btn) => {
     if(btn) { btn.classList.toggle('ctrl-default', !isDown); btn.classList.toggle('ctrl-pressed', isDown); }
 };
 
-window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight); });
-window.addEventListener('keyup', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight); });
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight);
+});
 
 const attachControl = (btn, key) => {
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
@@ -181,6 +188,12 @@ function update() {
                     } else if (p.item === 'gold') { isSuperJumping = true; velocityY = PHYSICS.superJumpPower; canvasCont.classList.add('gold-glow'); loadRive('kongsik_ingame_air.riv'); }
                 }
             }
+            if (!isSuperJumping && p.hasMouse) {
+                if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
+                else { p.mouseX += p.mouseDir * p.mouseSpeed; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) { p.mouseDir *= -1; p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); } }
+                let mx = p.x + p.mouseX, my = p.y - 35;
+                if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) { velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); }
+            }
             if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) { p.isBroken = true; spawnBreakParticles(p.x, p.y, p.w); } } }
         } else if (p.hasMouse) { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
     });
@@ -197,6 +210,11 @@ function update() {
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
+    particles.forEach(part => {
+        const pdiv = document.createElement('div');
+        pdiv.className = 'particle'; pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
+        stage.appendChild(pdiv);
+    });
     platforms.forEach(p => {
         if (!p.isBroken) {
             const d = document.createElement('div');
