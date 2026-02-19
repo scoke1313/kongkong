@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 최종 정밀 보정 버전</title>
+    <title>콩콩춘식 - 슈퍼 점프 보정 및 UI 최종</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -11,47 +11,40 @@
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         #game-stage { position: relative; width: 393px; height: 852px; background-color: #FFFDF5; overflow: hidden; }
 
-        /* --- 메인 화면 --- */
+        /* 메인 화면 */
         #main-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_main.png'); background-size: 100% 100%; z-index: 2000; display: flex; flex-direction: column; align-items: center; }
         #main-rive-container { position: absolute; top: 0; left: 0; width: 393px; height: 852px; pointer-events: none; }
         #btn-start { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 345px; cursor: pointer; z-index: 2100; transition: transform 0.1s; }
-        #btn-start:active { transform: translateX(-50%) scale(0.95); }
 
-        /* --- 인게임 UI --- */
+        /* 인게임 UI */
         .ingame-ui { display: none; }
         #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_ingame.png'); background-repeat: repeat-y; background-size: 100% auto; z-index: 1; }
+        
+        /* 닫기 버튼 44px 고정 */
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
+        #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
+
         .header-ui-container { position: absolute; top: 75px; left: 0; width: 100%; height: 120px; z-index: 1000; pointer-events: none; }
         #score-board { position: absolute; top: 0; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
 
-        /* 클로버 UI 캡슐 */
+        /* 클로버 UI 정밀 위치 유지 */
         .rate-capsule { position: absolute; top: -1px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; box-sizing: border-box; overflow: visible; }
         .ui-icon { position: absolute; top: 0; left: 0; width: 25px; height: 25px; object-fit: contain; transform: translate(12px, 9px); }
-        
-        /* ★ 숫자 좌표: 우측 25px, 기존보다 1px 위로(-2px) ★ */
-        #rate-board { 
-            position: absolute; top: 0; left: 25px; 
-            font-size: 20px; font-weight: 800; color: #2D1D1C; 
-            font-family: 'Arial', sans-serif; line-height: 46px; 
-            transform: translate(25px, -2px); 
-            white-space: nowrap; 
-        }
+        #rate-board { position: absolute; top: 0; left: 25px; font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; line-height: 46px; transform: translate(25px, -2px); white-space: nowrap; }
 
-        /* --- 결과 화면 --- */
+        /* 결과 화면 */
         #result-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 253, 245, 0.95); z-index: 3000; display: none; flex-direction: column; align-items: center; justify-content: center; color: #2D1D1C; font-family: 'Arial', sans-serif; }
         #result-title { font-family: 'Poetsen One', sans-serif; font-size: 42px; margin-bottom: 30px; }
-        .result-item { font-size: 20px; font-weight: bold; margin: 10px 0; }
         #final-rate-box { font-size: 32px; font-weight: 900; color: #E76A6A; margin: 25px 0; border: 3px solid #F0E0C6; padding: 15px 30px; border-radius: 20px; background: white; }
         .btn-group { display: flex; gap: 15px; margin-top: 40px; }
-        .result-btn { width: 150px; height: 55px; border-radius: 12px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .result-btn { width: 150px; height: 55px; border-radius: 12px; border: none; font-size: 18px; font-weight: bold; cursor: pointer; }
         .btn-retry { background-color: #E76A6A; color: white; }
         .btn-main { background-color: #F0E0C6; color: #2D1D1C; }
 
-        /* 캐릭터/캔버스 */
+        /* 게임 요소 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
-        .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; z-index: 6; }
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; z-index: 7; }
         .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
@@ -110,34 +103,39 @@ function createPlatformData(y) {
     let isBreakable = (rand < 0.15 + (Math.min(distM, 500) / 500) * 0.75);
     let moveType = (rand < Math.min(0.5, 0.1 + (0.4 * (distM / 500)))) ? (distM < 150 ? 'h' : (Math.random() > 0.5 ? 'h' : 'v')) : 'normal';
     let itemType = (rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
-    return { x: Math.random() * (393 - SIZES[distM<100?Math.floor(rand*2):Math.floor(rand*3)]), y, baseY: y, w: SIZES[distM<100?Math.floor(rand*2):Math.floor(rand*3)], h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40, vPhase: Math.random() * 6.28, isBroken: false };
+    let sIdx = distM < 100 ? Math.floor(rand * 2) : Math.floor(rand * 3);
+    return { x: Math.random() * (393 - SIZES[sIdx]), y, baseY: y, w: SIZES[sIdx], h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40, vPhase: Math.random() * 6.28, isBroken: false };
 }
 
-function initPlatforms() { score = 0; currentY = 0; velocityY = 0; posX = 0; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; platforms = []; let lastY = 752; for (let i = 0; i < 7; i++) { lastY -= (100 + Math.random() * 100); platforms.push(createPlatformData(lastY)); } platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, type: 'normal' }); }
+function initPlatforms() { score = 0; currentY = 0; velocityY = 0; posX = 0; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; platforms = []; let lastY = 752; for (let i = 0; i < 7; i++) { lastY -= (110 + Math.random() * 90); platforms.push(createPlatformData(lastY)); } platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, type: 'normal' }); }
 
 function update() {
     if (!isGameRunning) { requestAnimationFrame(update); return; }
     if (keys['ArrowLeft']) { posX -= 7; currentScale = -1; } if (keys['ArrowRight']) { posX += 7; currentScale = 1; }
-    posX = Math.max(-154, Math.min(154, posX)); velocityY += 0.81; currentY += velocityY;
+    posX = Math.max(-154, Math.min(154, posX)); velocityY += PHYSICS.gravity; currentY += velocityY;
+    
     platforms.forEach(p => {
         if (!p.isBroken) {
             if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
             else if (p.type === 'v') { p.vPhase += 0.03; p.y = p.baseY + Math.sin(p.vPhase) * 40; }
+            
             if (p.item && !p.itemCollected) {
                 let ix = p.x + p.w/2 - 25, iy = p.y - 55;
                 if (196 + posX + 20 > ix && 196 + posX - 20 < ix + 50 && 752 + currentY > iy && 752 + currentY < iy + 50) {
                     p.itemCollected = true;
                     if (p.item === 'clover') { cloverCount++; rateEl.innerText = `${(cloverCount * 0.1).toFixed(2)}%`; }
-                    else if (p.item === 'gold') { velocityY = PHYSICS.superJumpPower; }
+                    else if (p.item === 'gold') { 
+                        velocityY = PHYSICS.superJumpPower; // ★ 슈퍼 점프 보정 (속도 덮어쓰기)
+                    }
                 }
             }
             if (velocityY > 0 && 196 + posX + 20 > p.x && 196 + posX - 20 < p.x + p.w && 752 + currentY >= p.y && 752 + currentY <= p.y + 15) { 
-                loadRive('kongsik_ingame_land.riv'); velocityY = -18.9; currentY = p.y - 752; if (p.isBreakable) p.isBroken = true; 
+                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; if (p.isBreakable) p.isBroken = true; 
                 setTimeout(() => loadRive('kongsik_ingame_air.riv'), 200);
             }
         }
     });
-    if (currentY < -250) { let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; platforms.forEach(p => { p.y += d; p.baseY += d; if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (100 + Math.random() * 100))); p.isBroken = false; } }); }
+    if (currentY < -250) { let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; platforms.forEach(p => { p.y += d; p.baseY += d; if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (110 + Math.random() * 90))); p.isBroken = false; } }); }
     if (752 + currentY > 1050) showResult();
     canvasCont.style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     document.querySelectorAll('.platform, .game-item').forEach(el => el.remove());
