@@ -1,46 +1,64 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>춘식이 20fps 단독 테스트</title>
+  <meta charset="UTF-8" />
+  <title>춘식이 20fps - 필승 레이어 방식</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
-    body {
-      margin: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: white; /* 완전한 백지 상태 */
-    }
-    /* 요청하신 86x138 규격 고정 */
-    canvas {
-      width: 86px;
-      height: 138px;
-      border: 2px solid #FEE500; /* 영역 확인용 노란 테두리 */
+    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #333; }
+    #container { position: relative; width: 480px; height: 800px; background: #fff; overflow: hidden; }
+    
+    /* 1. 바닥 레이어 (게임 배경 등) */
+    #bgCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; background: #f0f0f0; }
+    
+    /* 2. 춘식이 전용 투명 레이어 (아까 그 방법!) */
+    /* 86x138 규격 고정 */
+    #chunCanvas { 
+      position: absolute; 
+      z-index: 2; 
+      width: 86px; 
+      height: 138px; 
+      pointer-events: none; /* 클릭 방해 금지 */
     }
   </style>
 </head>
 <body>
-
-  <canvas id="chun-canvas"></canvas>
+  <div id="container">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="chunCanvas"></canvas> </div>
 
   <script>
-    // 가장 확실한 직접 인스턴스 생성 방식
-    const r = new rive.Rive({
-      src: 'kongsik_ingame_20fps.riv',    // 파일명
-      canvas: document.getElementById('chun-canvas'),
-      artboard: 'Artboard',               //
-      stateMachines: 'State Machine 1',   //
-      autoplay: true,
-      onLoad: () => {
-        console.log("20fps 리브 로드 성공!");
-        r.resizeDrawingSurfaceToCanvas();
-      },
-      onLoadError: () => {
-        console.error("로드 실패: 파일 경로와 파일명을 다시 확인하세요.");
+    async function loadChun() {
+      const canvas = document.getElementById('chunCanvas');
+      try {
+        // 파일을 바이너리로 직접 긁어오기 (로딩 에러 방지)
+        const resp = await fetch('kongsik_ingame_20fps.riv');
+        const buffer = await resp.arrayBuffer();
+
+        const r = new rive.Rive({
+          buffer: buffer,
+          canvas: canvas,
+          artboard: 'Artboard',
+          stateMachines: 'State Machine 1',
+          autoplay: true,
+          onLoad: () => {
+            r.resizeDrawingSurfaceToCanvas();
+            // 화면 중앙에 배치 테스트
+            canvas.style.left = '197px'; 
+            canvas.style.top = '331px';
+            console.log("기억하신 그 방법대로 로드 완료! 🐯");
+          }
+        });
+      } catch (e) {
+        console.error("파일을 못 찾았습니다.");
       }
-    });
+    }
+    loadChun();
+
+    // 배경 캔버스 확인용 (회색 발판 하나 그림)
+    const bgCtx = document.getElementById('bgCanvas').getContext('2d');
+    bgCtx.fillStyle = "#ddd";
+    bgCtx.fillRect(140, 450, 200, 20);
   </script>
 </body>
 </html>
