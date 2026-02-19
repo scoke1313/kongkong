@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 시선 방향 수정</title>
+  <title>콩콩춘식 - 탄력 점프 업데이트</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -76,20 +76,14 @@
   }
   init();
 
-  let jumpPower = -15, gravity = 0.6; 
-  let p = { x: 197, y: 600, vy: 0 }, isRunning = false;
-  
-  // 리브 기본이 오른쪽이므로 오른쪽은 1, 왼쪽은 -1 (반전)
-  let lastDir = 1; 
-  
-  let landAnimationTimer = 0; 
-  const LAND_DELAY = 100; 
-  const LAND_VISIBLE_DURATION = 150; 
-  let isLanding = false; 
+  // --- 탄력 물리 설정 ---
+  let jumpPower = -15, gravity = 0.65; 
+  let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
+  let isSpringing = false; // 띠용(압축) 상태 플래그
 
   window.addEventListener('keydown', e => { 
-    if(e.code==='ArrowLeft'){ lastDir = -1; } // 왼쪽 키 -> 왼쪽 바라보기 (반전)
-    if(e.code==='ArrowRight'){ lastDir = 1; } // 오른쪽 키 -> 오른쪽 바라보기 (정방향)
+    if(e.code==='ArrowLeft'){ lastDir = -1; } 
+    if(e.code==='ArrowRight'){ lastDir = 1; } 
   });
 
   let lastTimestamp = 0;
@@ -98,30 +92,30 @@
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
-    if (!isLanding) {
-      p.vy += gravity; 
-      p.y += p.vy;
+    // 물리 로직: 띠용 상태일 때는 하강 속도를 급격히 줄여 탄성 구현
+    if (isSpringing) {
+      p.vy *= 0.5; // 속도를 반으로 줄여 부드럽게 감속
+      if (Math.abs(p.vy) < 0.5) {
+        p.vy = jumpPower; // 일정 속도 이하로 떨어지면 튕겨나감
+        isSpringing = false;
+      }
+    } else {
+      p.vy += gravity;
     }
+    p.y += p.vy;
 
-    if (p.y > 600 && !isLanding) {
+    // 바닥 충돌 시 띠용 시작
+    if (p.y > 600 && !isSpringing && p.vy > 0) {
       p.y = 600;
-      p.vy = 0;
-      isLanding = true;
-      landAnimationTimer = LAND_VISIBLE_DURATION;
+      isSpringing = true;
       
       setLayer(landCanvas);
       landRive.scrub("State Machine 1", 0);
       landRive.play("State Machine 1");
-
-      setTimeout(() => {
-        p.vy = jumpPower;
-        isLanding = false;
-      }, LAND_DELAY);
     } 
 
-    if (landAnimationTimer > 0) {
-      landAnimationTimer -= dt;
-    } else if (p.vy < 0) {
+    // 공중 모션 전환 타이밍
+    if (!isSpringing && p.vy < 0) {
       setLayer(airCanvas);
       airRive.play("State Machine 1");
     }
@@ -129,7 +123,6 @@
     [landCanvas, airCanvas].forEach(c => {
       c.style.left = (p.x - 43) + 'px';
       c.style.top = (p.y - 69) + 'px';
-      // 이동 방향에 맞춰 시선 처리
       c.style.transform = `scaleX(${lastDir})`;
     });
 
