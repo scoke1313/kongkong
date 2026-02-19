@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 상단 캡슐 UI 패치</title>
+    <title>콩콩춘식 - UI 개선 및 타이머 버전</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,24 +13,40 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 상단 캡슐 UI 레이아웃 --- */
+        /* --- 상단 캡슐 UI (하단으로 50px 이동 반영) --- */
         .header-ui-wrapper {
-            position: absolute; top: 25px; left: 0; width: 100%;
-            display: flex; justify-content: space-between;
-            padding: 0 15px; box-sizing: border-box; z-index: 1000;
+            position: absolute; 
+            top: 75px; /* 기존 25px에서 50px 하단으로 이동 */
+            left: 0; 
+            width: 100%;
+            display: flex; 
+            justify-content: space-between;
+            padding: 0 15px; 
+            box-sizing: border-box; 
+            z-index: 1000;
         }
 
         .ui-capsule {
-            display: flex; align-items: center;
-            background: #FFFFFF; border: 2px solid #F3EDE2;
-            border-radius: 25px; padding: 4px 12px 4px 6px;
-            min-width: 90px; box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+            display: flex; 
+            align-items: center;
+            background: #FFFFFF; 
+            border: 2px solid #F3EDE2;
+            border-radius: 25px; 
+            padding: 5px 15px 5px 8px;
+            min-width: 110px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
 
-        .ui-icon { width: 26px; height: 26px; margin-right: 6px; object-fit: contain; }
-        .ui-value { font-size: 19px; font-weight: 800; color: #5c3e34; font-family: 'Arial', sans-serif; }
+        .ui-icon { width: 28px; height: 28px; margin-right: 8px; object-fit: contain; }
+        
+        /* 숫자 폰트 스타일링: 2단계 크게(24px), 2단계 두껍게(900) */
+        .ui-value { 
+            font-size: 24px; 
+            font-weight: 900; 
+            color: #5c3e34; 
+            font-family: 'Arial Black', sans-serif; 
+        }
 
-        /* 기존 absolute 레이아웃 제거를 위해 아이디 위치값 초기화 */
         #score-board, #rate-board { position: static; font-size: inherit; color: inherit; font-weight: inherit; }
 
         #canvas-container {
@@ -57,7 +73,6 @@
             z-index: 120; pointer-events: none; transition: transform 0.8s, opacity 0.8s; 
         }
         
-        .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
         .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
@@ -71,7 +86,7 @@
     <div class="header-ui-wrapper">
         <div class="ui-capsule">
             <img src="time_s.png" class="ui-icon" alt="time">
-            <span id="score-board" class="ui-value">0m</span>
+            <span id="score-board" class="ui-value">60s</span>
         </div>
         <div class="ui-capsule">
             <img src="clover_s.png" class="ui-icon" alt="clover">
@@ -80,13 +95,11 @@
     </div>
     
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
-    
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
-// 로직은 롤백해주신 코드 그대로 유지 (UI 반영을 위해 innerText 연동만 됨)
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
@@ -97,9 +110,29 @@ let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], particles = [], motionTimer = 0, lastLoadedFile = "";
 let mouseAnimFrame = 0;
 
+// 타이머 변수 추가
+let timeLeft = 60;
+let timerId = null;
+
 const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), 
       scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board'),
       canvasCont = document.getElementById('canvas-container');
+
+// 타이머 시작 함수
+function startTimer() {
+    if(timerId) clearInterval(timerId);
+    timeLeft = 60;
+    scoreEl.innerText = timeLeft + "s";
+    timerId = setInterval(() => {
+        timeLeft--;
+        scoreEl.innerText = timeLeft + "s";
+        if(timeLeft <= 0) {
+            clearInterval(timerId);
+            alert("시간 종료!");
+            initPlatforms();
+        }
+    }, 1000);
+}
 
 const setInput = (key, isDown, btn) => { 
     keys[key] = isDown; 
@@ -127,8 +160,7 @@ function createPlatformData(yPos) {
     const rand = Math.random();
     let sizeIdx = distM < 30 ? 0 : Math.floor(rand * SIZES.length);
     const width = SIZES[sizeIdx];
-    let woodProb = 0.2 + (Math.min(distM, 500) / 500) * 0.7;
-    let isBreakable = rand < woodProb;
+    let isBreakable = rand < (0.2 + (Math.min(distM, 500) / 500) * 0.7);
     const typeKey = isBreakable ? 'wood' : 'block';
     let canHaveMouse = (width === 138) && (rand < 0.2); 
     let itemType = null;
@@ -138,21 +170,17 @@ function createPlatformData(yPos) {
     return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[typeKey][sizeIdx], isBreakable: isBreakable, durability: isBreakable ? 1 : 999, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1, mouseSpeed: 0.7 + Math.random() * 0.5, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false, isTouched: false };
 }
 
-function spawnBreakParticles(x, y, width) {
-    for (let i = 0; i < 15; i++) { particles.push({ x: x + Math.random() * width, y: y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 1) * 6, life: 1.0, size: Math.random() * 3 + 2, color: '#BCAAA4' }); }
-}
-
 function initPlatforms() {
     document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item, .pickup-effect').forEach(el => el.remove());
     score = 0; cloverRate = 0; isSuperJumping = false;
-    scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; // 텍스트만 깔끔하게 나오도록 수정
+    rateEl.innerText = "0.00%";
     bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
     canvasCont.classList.remove('gold-glow');
-    document.getElementById('game-stage').style.backgroundPositionY = '0px';
-    platforms = []; particles = [];
+    platforms = [];
     let lastY = 752;
     for (let i = 0; i < 6; i++) { lastY -= (100 + Math.random() * 110); platforms.push(createPlatformData(lastY)); }
     platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
+    startTimer(); // 게임 초기화 시 타이머 재시작
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -166,6 +194,7 @@ function update() {
     currentY += velocityY; mouseAnimFrame = (mouseAnimFrame + 1) % 20;
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
     if (isSuperJumping && velocityY >= 0) { isSuperJumping = false; canvasCont.classList.remove('gold-glow'); }
+    
     platforms.forEach(p => {
         if (!p.isBroken) {
             if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
@@ -191,43 +220,29 @@ function update() {
                 let mx = p.x + p.mouseX, my = p.y - 35;
                 if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) { velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); }
             }
-            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) { p.isBroken = true; spawnBreakParticles(p.x, p.y, p.w); } } }
+            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; } }
         } else if (p.hasMouse) { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
     });
-    particles.forEach((part) => { part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02; });
-    particles = particles.filter(part => part.life > 0);
-    if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
-    if (currentY < -250) {
-        let diff = -250 - currentY; currentY = -250; score += diff; scoreEl.innerText = Math.floor(score * 0.01) + "m";
-        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { let randomGap = 50 + Math.random() * 160; Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - randomGap)); p.isBroken = false; } });
-        particles.forEach(part => part.y += diff);
-    }
     if (charFootY > 1050) initPlatforms();
+    if (currentY < -250) {
+        let diff = -250 - currentY; currentY = -250; score += diff;
+        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
+        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (50 + Math.random() * 160))); p.isBroken = false; } });
+    }
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
-    particles.forEach(part => {
-        const pdiv = document.createElement('div');
-        pdiv.className = 'particle'; pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
-        stage.appendChild(pdiv);
-    });
+    document.querySelectorAll('.platform, .mouse-enemy, .game-item').forEach(el => el.remove());
     platforms.forEach(p => {
         if (!p.isBroken) {
-            const d = document.createElement('div');
-            d.className = 'platform'; let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
-            d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
+            const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`;
             stage.appendChild(d);
             if (p.item && !p.itemCollected) {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'game-item'; itemDiv.style.backgroundImage = `url('item_${p.item}.png')`;
-                itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
+                const itemDiv = document.createElement('div'); itemDiv.className = 'game-item'; itemDiv.style.backgroundImage = `url('item_${p.item}.png')`; itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
                 stage.appendChild(itemDiv);
             }
         }
         if (p.hasMouse) {
-            const m = document.createElement('div');
-            m.className = 'mouse-enemy';
+            const m = document.createElement('div'); m.className = 'mouse-enemy';
             const mouseImg = (p.mouseWaitTimer > 0 || p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
             m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
@@ -238,4 +253,5 @@ function update() {
 update();
 </script>
 </body>
+</html>
 </html>
