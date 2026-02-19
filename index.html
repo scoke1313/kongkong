@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 쥐 캐릭터 복구 패치</title>
+    <title>콩콩춘식 - 네비게이션 상단 밀착 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,23 +13,24 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 네비게이션: 찌그러짐 방지 및 원본 비율 유지 --- */
+        /* --- 네비게이션: 상단 마진 없이 최상단에 딱 붙임 --- */
         #nav-bar {
             position: absolute; 
-            top: 0; 
+            top: 0; /* 상단 마진 0 */
             left: 0; 
             width: 393px; 
-            z-index: 9999; 
+            z-index: 9999; /* 모든 요소보다 위 */
             cursor: pointer;
             line-height: 0;
         }
         
         #nav-bar img {
             width: 100%;
-            height: auto;
+            height: auto; /* 비율 유지하여 찌그러짐 방지 */
             display: block;
         }
 
+        /* UI 위치 조정 (상단바 영역 고려) */
         #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
         #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
@@ -47,10 +48,7 @@
 
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
-        
-        /* 쥐 캐릭터 스타일 */
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
-
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         
         .pickup-effect { 
@@ -180,7 +178,6 @@ function update() {
                 }
             }
 
-            // 쥐 적 데이터 업데이트 로직
             if (!isSuperJumping && p.hasMouse) {
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
                 else { p.mouseX += p.mouseDir * p.mouseSpeed; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) { p.mouseDir *= -1; p.mouseWaitTimer = 30 + Math.floor(Math.random() * 90); } }
@@ -192,7 +189,7 @@ function update() {
                 loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; 
                 p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; } 
             }
-        } else if (p.hasMouse) { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
+        }
     });
 
     if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
@@ -205,8 +202,6 @@ function update() {
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     
     const stage = document.getElementById('game-stage');
-    
-    // 화면상의 이전 요소들 삭제
     document.querySelectorAll('.platform, .mouse-enemy, .game-item').forEach(el => el.remove());
     
     platforms.forEach(p => {
@@ -225,7 +220,6 @@ function update() {
                 stage.appendChild(itemDiv);
             }
         }
-        // ★ 쥐(mouse-enemy) 다시 그리기 로직 추가
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
