@@ -1,51 +1,160 @@
-// --- 물리 파라미터 미세 조정 ---
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>춘식 점프 물리 로직 - 최종 완성본</title>
+    <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
+    <style>
+        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        /* 요청하신 393x852 사이즈 고정 */
+        #game-stage { 
+            position: relative; 
+            width: 393px; 
+            height: 852px; 
+            background: #FFD400; /* 춘식이 컬러 */
+            overflow: hidden; 
+        }
+        /* 캐릭터 사이즈 86x138 고정 */
+        #canvas-container {
+            position: absolute;
+            width: 86px;
+            height: 138px;
+            bottom: 100px;
+            left: 50%;
+            margin-left: -43px; 
+            z-index: 10;
+        }
+        canvas { width: 100%; height: 100%; }
+        /* 발판 디자인 */
+        .platform {
+            position: absolute;
+            width: 80px;
+            height: 15px;
+            background: #5c3e34;
+            border-radius: 5px;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-stage">
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+</div>
+
+<script>
+// --- 물리 파라미터 (밟는 맛 최적화 수치) ---
 const PHYSICS = {
-    gravity: 1.0,       // 중력을 0.9 -> 1.0으로 높여 더 묵직하게 낙하
-    jumpPower: -23,     // 도약력을 -20 -> -23으로 높여 튕겨나가는 탄성 강화
-    moveSpeed: 7,
+    gravity: 1.1,       // 중력 강화 (더 묵직하게)
+    jumpPower: -24,     // 탄성 강화 (더 높게)
+    moveSpeed: 8,
     stageWidth: 393,
     stageHeight: 852,
-    motionHold: 15      // 1번 모션 유지 시간을 12 -> 15프레임으로 늘려 도약감 강조
+    motionHold: 15      // 0.25초 정도 도약 모션 유지
 };
 
-// ... (기존 코드 생략) ...
+let currentY = 0;       
+let velocityY = 0;
+let posX = 0;           
+let isJumping = true;   
+let riveInstance;
+let keys = {};          
+let currentScale = 1;   
+let motionTimer = 0;    
+let platforms = [];     
+let currentFile = "";
+
+// Rive 초기화
+function loadRive(fileName) {
+    if (currentFile === fileName) return;
+    currentFile = fileName;
+    if (riveInstance) riveInstance.cleanup();
+    riveInstance = new rive.Rive({
+        src: fileName,
+        canvas: document.getElementById('canvas'),
+        autoplay: true,
+        stateMachines: 'State Machine 1',
+        onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
+    });
+}
+
+// 발판 초기화
+function initPlatforms() {
+    for (let i = 0; i < 8; i++) {
+        platforms.push({
+            x: Math.random() * (PHYSICS.stageWidth - 80),
+            y: i * 110 + 50 
+        });
+    }
+    // 시작 발판
+    platforms.push({ x: PHYSICS.stageWidth / 2 - 40, y: 720 });
+}
+
+loadRive('kongsik_ingame_air.riv');
+initPlatforms();
 
 function update() {
-    // (이동 및 가속도 계산 로직 동일)
+    // 1. 좌우 이동 및 이탈 방지
+    if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
+    if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
+    const limit = (PHYSICS.stageWidth / 2) - 43;
+    if (posX < -limit) posX = -limit;
+    if (posX > limit) posX = limit;
+
+    // 2. 수직 물리 계산
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // (모션 제어 로직 동일)
+    // 3. 모션 유지 로직 (0.2초 룰)
+    if (motionTimer > 0) {
+        motionTimer--;
+        loadRive('kongsik_ingame_air.riv');
+    } else if (velocityY > 2) {
+        loadRive('kongsik_ingame_land.riv');
+    }
 
-    // 4. [수정] 밟는 느낌을 극대화한 히트박스 판정
-    if (velocityY > 0) { // 하강 중에만 판정
+    // 4. 세밀한 히트박스 (밟는 느낌 강조)
+    if (velocityY > 0) {
         platforms.forEach(p => {
-            // 춘식이 발 위치 (이미지 하단부)
+            // 발바닥 판정선 (이미지 끝에서 5px 정도 파묻히도록 설정)
             const charFoot = (852 - 100 - currentY);
-            
-            // 춘식이 가로 범위 (더 타이트하게 조정)
-            const charLeft = (PHYSICS.stageWidth / 2) + posX - 20;
-            const charRight = (PHYSICS.stageWidth / 2) + posX + 20;
+            const charLeft = (PHYSICS.stageWidth / 2) + posX - 25;
+            const charRight = (PHYSICS.stageWidth / 2) + posX + 25;
 
-            // [핵심 수정] 
-            // 1. 발판의 윗면(p.y)보다 발이 '약간 더 아래로' 내려왔을 때 판정 (파묻히는 느낌)
-            // 2. 판정 오차 범위를 좁혀서(15px -> 10px) 정확히 밟았을 때만 반응
-            if (charRight > p.x && charLeft < p.x + 80) {
-                if (charFoot >= p.y + 2 && charFoot <= p.y + 12) {
-                    
-                    // 밟는 순간의 물리적 반동 시각화
-                    velocityY = PHYSICS.jumpPower; 
-                    motionTimer = PHYSICS.motionHold; 
-                    
-                    // 밟는 순간 살짝 '멈칫'하는 느낌을 주려면 currentY를 보정
-                    currentY -= 5; // 밟는 순간 위로 5px 강제 이동 (반동 강조)
-                    
-                    loadRive('kongsik_ingame_air.riv');
-                    console.log("발판 딛음!");
-                }
+            // 판정 범위: 발판 윗면(p.y)에서 아래로 15px 사이를 지날 때
+            if (charRight > p.x && charLeft < p.x + 80 &&
+                charFoot >= p.y + 5 && charFoot <= p.y + 20) {
+                
+                velocityY = PHYSICS.jumpPower; 
+                currentY -= 8; // 밟는 순간 살짝 위로 튕겨주는 시각적 반동
+                motionTimer = PHYSICS.motionHold; 
+                loadRive('kongsik_ingame_air.riv');
             }
         });
     }
 
-    // (나머지 렌더링 로직 동일)
-}
+    // 5. 무한 스크롤 카메라
+    if (currentY < -200) {
+        let diff = -200 - currentY;
+        currentY = -200;
+        platforms.forEach(p => {
+            p.y += diff;
+            if (p.y > PHYSICS.stageHeight) {
+                p.y = 0;
+                p.x = Math.random() * (PHYSICS.stageWidth - 80);
+            }
+        });
+    }
+
+    // 6. 추락 리셋
+    if (currentY > 300) {
+        currentY = 0;
+        velocityY = PHYSICS.jumpPower;
+        motionTimer = PHYSICS.motionHold;
+    }
+
+    // 7. 위치 업데이트
+    document.getElementById('canvas-container').style.transform = 
+        `translate(${
