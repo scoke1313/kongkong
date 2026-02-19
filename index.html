@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 깜빡임 해결 완료</title>
+  <title>콩콩춘식 - 착지 딜레이 적용</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -11,20 +11,15 @@
     #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
 
-    /* 필승 비법 업그레이드: 투명도로 깜빡임 방지 */
     .chun-layer {
       position: absolute;
       width: 86px !important;
       height: 138px !important;
       pointer-events: none;
-      opacity: 0; /* 평소엔 숨김 */
-      transition: opacity 0.05s; /* 아주 미세한 페이드로 깜빡임 방지 */
+      opacity: 0;
+      z-index: 2;
     }
-    /* 활성화된 캐릭터만 보이게 설정 */
-    .active-chun {
-      opacity: 1 !important;
-      z-index: 3 !important;
-    }
+    .active-chun { opacity: 1 !important; z-index: 3 !important; }
     
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
     .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
@@ -49,7 +44,6 @@
   const bgCanvas = document.getElementById('bgCanvas');
   const landCanvas = document.getElementById('landCanvas'), airCanvas = document.getElementById('airCanvas');
   const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
-
   bgCanvas.width = 480; bgCanvas.height = 800;
 
   let landRive, airRive;
@@ -83,9 +77,13 @@
   init();
 
   let jumpPower = -15, gravity = 0.6; 
-  let p = { x: 197, y: 600, vy: jumpPower }, isRunning = false, lastDir = 1;
+  let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
+  
+  // --- 딜레이 관련 변수 ---
   let landAnimationTimer = 0; 
-  const LAND_DURATION = 150; 
+  const LAND_DELAY = 100; // 0.1초 착지 딜레이 (물리 멈춤)
+  const LAND_VISIBLE_DURATION = 150; // 착지 모션 유지 총 시간
+  let isLanding = false; 
 
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ lastDir=1; } 
@@ -98,27 +96,37 @@
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
-    p.vy += gravity; p.y += p.vy;
+    // 착지 딜레이 중이 아닐 때만 물리 연산 진행
+    if (!isLanding) {
+      p.vy += gravity; 
+      p.y += p.vy;
+    }
 
-    if (p.y > 600) {
-      p.y = 600; p.vy = jumpPower;
-      landAnimationTimer = LAND_DURATION;
+    // 바닥 충돌 (임시 바닥 600px)
+    if (p.y > 600 && !isLanding) {
+      p.y = 600;
+      p.vy = 0; // 일단 멈춤
+      isLanding = true;
+      landAnimationTimer = LAND_VISIBLE_DURATION;
       
-      // 착지 레이어 활성화
       setLayer(landCanvas);
       landRive.scrub("State Machine 1", 0);
       landRive.play("State Machine 1");
+
+      // 0.1초 뒤에 실제 점프력 주입
+      setTimeout(() => {
+        p.vy = jumpPower;
+        isLanding = false;
+      }, LAND_DELAY);
     } 
 
     if (landAnimationTimer > 0) {
       landAnimationTimer -= dt;
     } else if (p.vy < 0) {
-      // 공중 레이어 활성화
       setLayer(airCanvas);
       airRive.play("State Machine 1");
     }
 
-    // 위치 업데이트 (두 캔버스 동시 이동)
     [landCanvas, airCanvas].forEach(c => {
       c.style.left = (p.x - 43) + 'px';
       c.style.top = (p.y - 69) + 'px';
@@ -128,7 +136,6 @@
     requestAnimationFrame(loop);
   }
 
-  // 깜빡임 방지 핵심 함수: CSS 클래스만 교체
   function setLayer(active) {
     landCanvas.classList.remove('active-chun');
     airCanvas.classList.remove('active-chun');
@@ -138,8 +145,7 @@
   btnStart.onclick = () => {
     document.getElementById('start').classList.add('hidden');
     isRunning = true;
-    landRive.resizeDrawingSurfaceToCanvas();
-    airRive.resizeDrawingSurfaceToCanvas();
+    p.vy = jumpPower; // 시작 점프
     lastTimestamp = performance.now();
     loop(lastTimestamp);
   };
