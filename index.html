@@ -6,7 +6,6 @@
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        /* 393x852 사이즈 고정 */
         #game-stage { 
             position: relative; 
             width: 393px; 
@@ -14,12 +13,11 @@
             background: #fff; 
             overflow: hidden; 
         }
-        /* 캐릭터 사이즈 86x138 고정 */
         #canvas-container {
             position: absolute;
             width: 86px;
             height: 138px;
-            bottom: 100px; /* 초기 위치: 바닥에서 100px 위 */
+            bottom: 100px; 
             left: 50%;
             margin-left: -43px; 
             z-index: 10;
@@ -43,17 +41,17 @@
 </div>
 
 <script>
-// --- 물리 파라미터 ---
+// --- 물리 파라미터 (높이는 유지, 속도만 0.8배 감속) ---
 const PHYSICS = {
-    gravity: 0.9,       
-    jumpPower: -21,     
+    gravity: 0.65,      // [수정] 0.9 * 0.72 (체공 시간 증가)
+    jumpPower: -17,     // [수정] -21 * 0.8 (상승 속도 감소)
     moveSpeed: 7,
     stageWidth: 393,
     stageHeight: 852,
-    motionHold: 12      // 0.2초 유지
+    motionHold: 15      // 속도가 느려진 만큼 모션 유지 시간 살짝 증가
 };
 
-let currentY = 0;       // translateY 값 (0일 때 bottom:100px 위치)
+let currentY = 0;       
 let velocityY = 0;
 let posX = 0;           
 let riveInstance;
@@ -63,7 +61,6 @@ let platforms = [];
 let motionTimer = 0;
 let lastLoadedFile = "";
 
-// Rive 초기화
 function loadRive(fileName) {
     if (lastLoadedFile === fileName) return;
     lastLoadedFile = fileName;
@@ -77,13 +74,11 @@ function loadRive(fileName) {
     });
 }
 
-// 발판 생성
 function initPlatforms() {
     platforms = [];
     for (let i = 0; i < 8; i++) {
         platforms.push({ x: Math.random() * (393 - 80), y: i * 110 + 50 });
     }
-    // 시작 발판 (춘식이 발 바로 밑)
     platforms.push({ x: 393/2 - 40, y: 752 }); 
 }
 
@@ -91,18 +86,15 @@ loadRive('kongsik_ingame_air.riv');
 initPlatforms();
 
 function update() {
-    // 1. 이동 및 화면 제한
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
     const limit = (PHYSICS.stageWidth / 2) - 43;
     if (posX < -limit) posX = -limit;
     if (posX > limit) posX = limit;
 
-    // 2. 물리 엔진
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // 3. 모션 상태 관리
     if (motionTimer > 0) {
         motionTimer--;
         loadRive('kongsik_ingame_air.riv');
@@ -110,27 +102,22 @@ function update() {
         loadRive('kongsik_ingame_land.riv');
     }
 
-    // 4. [버그수정] 정밀 히트박스 판정
-    // 초기 bottom:100px일 때 발의 Y좌표는 752 (852 - 100)
-    // currentY가 마이너스면 위로, 플러스면 아래로 이동함
     const charFootY = 752 + currentY; 
-    const charLeft = (393 / 2) + posX - 25; // 발 너비 타이트하게 조정
+    const charLeft = (393 / 2) + posX - 25;
 
-    if (velocityY > 0) { // 하강할 때만 체크
+    if (velocityY > 0) { 
         platforms.forEach(p => {
-            // 발바닥이 발판 윗면을 통과하는 순간 (정밀도 15px)
             if (charLeft + 50 > p.x && charLeft < p.x + 80 &&
                 charFootY >= p.y && charFootY <= p.y + 15) {
                 
                 velocityY = PHYSICS.jumpPower; 
-                currentY = p.y - 752; // 발 위치를 발판 윗면에 강제 고정 (오차 보정)
+                currentY = p.y - 752; 
                 motionTimer = PHYSICS.motionHold; 
                 loadRive('kongsik_ingame_air.riv');
             }
         });
     }
 
-    // 5. 무한 스크롤 (카메라)
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
@@ -143,15 +130,13 @@ function update() {
         });
     }
 
-    // 6. 추락 시 게임 오버 및 리셋 (허공 점프 삭제)
-    if (charFootY > 900) { // 화면 아래로 완전히 사라지면
+    if (charFootY > 900) {
         currentY = 0;
-        velocityY = PHYSICS.jumpPower;
-        initPlatforms(); // 발판 새로 배치
+        velocityY = PHYSICS.jumpPower; 
+        initPlatforms();
         loadRive('kongsik_ingame_air.riv');
     }
 
-    // 7. 렌더링
     document.getElementById('canvas-container').style.transform = 
         `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
 
