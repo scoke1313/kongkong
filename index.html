@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 최종 결과창 버전</title>
+    <title>콩콩춘식 - 금리 합산 완벽 버전</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -24,7 +24,7 @@
             background-repeat: no-repeat; background-position: center; cursor: pointer; border: none; background-color: transparent; z-index: 2001;
         }
 
-        /* --- 결과 화면 (텍스트 수정) --- */
+        /* --- 결과 화면 --- */
         #result-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 3000; display: none;
@@ -38,25 +38,15 @@
         #result-screen.show .result-card { transform: translateY(0); opacity: 1; }
         
         .res-badge { display: inline-block; padding: 6px 16px; background: #FEE500; border-radius: 20px; font-weight: 800; color: #2D1D1C; font-size: 14px; margin-bottom: 12px; }
-        /* "금리 점프 챌린지 결과" 로 폰트 크기 조정 */
         .res-title { font-size: 24px; font-weight: 800; color: #2D1D1C; margin: 0; line-height: 1.2; word-break: keep-all; }
-        
         .res-divider { width: 100%; height: 1px; background: #F0E0C6; margin: 24px 0; }
-        
         .res-stats-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
         .res-stats-label { color: #888; font-size: 15px; font-weight: 500; }
         .res-stats-value { color: #2D1D1C; font-size: 16px; font-weight: 700; }
-
         .res-total-box { margin-top: 30px; background: #F9F9F9; border-radius: 24px; padding: 20px; }
         .res-total-label { font-size: 14px; color: #555; font-weight: 600; margin-bottom: 4px; }
         .res-total-value { font-size: 44px; font-weight: 900; color: #FA435B; font-family: 'Arial', sans-serif; letter-spacing: -1px; }
-
-        #btn-retry { 
-            margin-top: 24px; width: 100%; height: 64px; 
-            background: #2D1D1C; color: #FFF; border: none; border-radius: 20px; 
-            font-size: 18px; font-weight: 800; cursor: pointer; transition: transform 0.1s;
-        }
-        #btn-retry:active { transform: scale(0.98); }
+        #btn-retry { margin-top: 24px; width: 100%; height: 64px; background: #2D1D1C; color: #FFF; border: none; border-radius: 20px; font-size: 18px; font-weight: 800; cursor: pointer; }
 
         /* --- 인게임 UI --- */
         #ingame-ui { display: none; }
@@ -64,10 +54,10 @@
         #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
         .header-ui-container { position: absolute; top: 75px; left: 0; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; box-sizing: border-box; z-index: 1000; }
         #score-board { font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
-        .rate-capsule { display: flex; align-items: center; justify-content: center; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; width: 130px; height: 46px; box-sizing: border-box; }
+        .rate-capsule { display: flex; align-items: center; justify-content: center; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; width: 110px; height: 46px; box-sizing: border-box; }
         #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
 
-        /* --- 오브젝트 스타일 --- */
+        /* --- 게임 요소 --- */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; display: none; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
@@ -98,16 +88,16 @@
             <div class="res-title">금리 점프 챌린지 결과</div>
             <div class="res-divider"></div>
             <div class="res-stats-row">
-                <span class="res-stats-label">점프 거리</span>
-                <span class="res-stats-value" id="res-dist">0m</span>
+                <span class="res-stats-label">거리 보너스 (1m=0.01%)</span>
+                <span class="res-stats-value" id="res-dist-val">+0.00%</span>
             </div>
             <div class="res-stats-row">
-                <span class="res-stats-label">모은 클로버</span>
-                <span class="res-stats-value" id="res-clover">0개</span>
+                <span class="res-stats-label">클로버 보너스 (1개=0.1%)</span>
+                <span class="res-stats-value" id="res-clover-val">+0.00%</span>
             </div>
             <div class="res-total-box">
-                <div class="res-total-label">최종 보너스 금리</div>
-                <div class="res-total-value" id="res-total">0.0%</div>
+                <div class="res-total-label">최종 합산 보너스 금리</div>
+                <div class="res-total-value" id="res-total">0.00%</div>
             </div>
             <button id="btn-retry" onclick="location.reload();">다시 도전하기</button>
         </div>
@@ -117,7 +107,7 @@
         <div id="btn-close-wrap" onclick="location.reload();"><img src="close.png" alt="close"></div>
         <div class="header-ui-container">
             <div id="score-board">0m</div>
-            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0.00%</span></div>
+            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0개</span></div>
         </div>
     </div>
     
@@ -127,15 +117,16 @@
 </div>
 
 <script>
-// --- 엔진 및 물리 로직 (기존 유지) ---
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58];
 
 let isPlaying = false, isSuperJumping = false, isGameOver = false;
 let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverCount = 0, bgScrollY = 0;
+let maxReachY = 0; // 최고 높이 추적 변수 추가
 let riveInstance, keys = {}, currentScale = 1, platforms = [], woodParticles = [], motionTimer = 0, lastLoadedFile = "", mouseAnimFrame = 0;
 
+// 메인 리브 파일 로드
 const mainRive = new rive.Rive({
     src: 'kongsik.riv',
     canvas: document.getElementById('main-canvas'),
@@ -156,12 +147,15 @@ function startGame() {
 
 function showResult() {
     isPlaying = false; isGameOver = true;
+    
     const distM = Math.floor(score * 0.01);
-    const finalRate = cloverCount * 0.1;
+    const distRate = distM * 0.01;
+    const cloverRate = cloverCount * 0.1;
+    const total = distRate + cloverRate;
 
-    document.getElementById('res-dist').innerText = `${distM}m`;
-    document.getElementById('res-clover').innerText = `${cloverCount}개`;
-    document.getElementById('res-total').innerText = `${finalRate.toFixed(1)}%`;
+    document.getElementById('res-dist-val').innerText = `+${distRate.toFixed(2)}% (${distM}m)`;
+    document.getElementById('res-clover-val').innerText = `+${cloverRate.toFixed(2)}% (${cloverCount}개)`;
+    document.getElementById('res-total').innerText = `${total.toFixed(2)}%`;
     
     const screen = document.getElementById('result-screen');
     screen.style.display = 'flex';
@@ -214,9 +208,9 @@ function createPlatformData(yPos) {
 }
 
 function initPlatforms() {
-    score = 0; cloverCount = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = [];
+    score = 0; cloverCount = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = []; bgScrollY = 0; maxReachY = 0;
     document.getElementById('score-board').innerText = "0m";
-    document.getElementById('rate-board').innerText = "0.00%";
+    document.getElementById('rate-board').innerText = "0개";
     platforms = [];
     let lastY = 752;
     for (let i = 0; i < 7; i++) { lastY -= (120 + Math.random() * 80); platforms.push(createPlatformData(lastY)); }
@@ -235,16 +229,28 @@ function spawnPickupEffect(x, y) {
 
 function update() {
     if (!isPlaying) { if(!isGameOver) requestAnimationFrame(update); return; }
+
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
     posX = Math.max(-153, Math.min(153, posX));
+    
     velocityY += isSuperJumping ? PHYSICS.gravity * 0.5 : PHYSICS.gravity;
     currentY += velocityY;
     mouseAnimFrame = (mouseAnimFrame + 1) % 20;
+
+    // --- 실시간 거리 계산 로직 보강 ---
+    let currentTotalY = -currentY + bgScrollY;
+    if (currentTotalY > maxReachY) {
+        maxReachY = currentTotalY;
+        score = maxReachY; // score를 최고 도달 높이로 업데이트
+        document.getElementById('score-board').innerText = Math.floor(score * 0.01) + "m";
+    }
+    
     if (isSuperJumping && velocityY >= 0) { isSuperJumping = false; document.getElementById('canvas-container').classList.remove('gold-glow'); }
     woodParticles.forEach(p => p.update());
     woodParticles = woodParticles.filter(p => p.life > 0);
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
+
     platforms.forEach(p => {
         if (p.hasMouse) {
             if (!p.isBroken) {
@@ -262,7 +268,8 @@ function update() {
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
-                        cloverCount++; document.getElementById('rate-board').innerText = (cloverCount * 0.1).toFixed(2) + "%";
+                        cloverCount++;
+                        document.getElementById('rate-board').innerText = `${cloverCount}개`; 
                         spawnPickupEffect(ix + 25, iy);
                     } else if (p.item === 'gold') { 
                         isSuperJumping = true; velocityY = PHYSICS.superJumpPower; 
@@ -276,12 +283,20 @@ function update() {
             }
         }
     });
+
     if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
     if (currentY < -250) {
-        let diff = -250 - currentY; currentY = -250; score += diff;
-        document.getElementById('score-board').innerText = Math.floor(score * 0.01) + "m";
-        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { let topY = Math.min(...platforms.map(pl => pl.y)); Object.assign(p, createPlatformData(topY - (120 + Math.random() * 80))); p.isBroken = false; } });
+        let diff = -250 - currentY; currentY = -250;
+        bgScrollY += diff; 
+        document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
+        platforms.forEach(p => { 
+            p.y += diff; p.baseY += diff;
+            if (p.y > 852 && p.baseY > 852) { 
+                let topY = Math.min(...platforms.map(pl => pl.y));
+                Object.assign(p, createPlatformData(topY - (120 + Math.random() * 80))); 
+                p.isBroken = false; 
+            }
+        });
         woodParticles.forEach(p => p.y += diff);
     }
     if (charFootY > 1050) showResult();
