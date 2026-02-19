@@ -53,7 +53,7 @@ let platforms = [], enemies = [], frameCount = 0;
 function createPlatformData(yPos) {
     const sizeIdx = Math.floor(Math.random() * SIZES.length);
     const width = SIZES[sizeIdx];
-    const isBreakable = Math.random() > 0.3; // 나무 발판 확률
+    const isBreakable = Math.random() > 0.3; 
     const pX = Math.random() * (393 - width);
 
     const p = {
@@ -64,11 +64,10 @@ function createPlatformData(yPos) {
         speed: 1.2, isBroken: false
     };
 
-    // 쥐돌이 생성 및 발판 귀속
     if (Math.random() < 0.25 && width > 60) {
         enemies.push({
             parentPlatform: p,
-            x: pX + 10, y: yPos - 54, // 54x54 정사이즈
+            x: pX + 10, y: yPos - 54, 
             w: 54, h: 54, speed: 1.8, scaleX: 1, frame: 0,
             relX: 10, pWidth: width, isFalling: false, fallVel: 0
         });
@@ -87,7 +86,6 @@ function init() {
     platforms.push({ x: 127, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, type: 'normal' });
 }
 
-// 입력 및 Rive 로드 (세이브 포인트 유지)
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 function setBtnState(btn, on) { btn.classList.toggle('ctrl-default', !on); btn.classList.toggle('ctrl-pressed', on); }
@@ -96,6 +94,15 @@ btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput(
 btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnLeft); });
 btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnRight); });
 btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnRight); });
+
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', false, btnRight);
+});
 
 function loadRive(name) {
     if (riveInstance) riveInstance.cleanup();
@@ -113,12 +120,11 @@ function update() {
     currentY += velocityY;
     frameCount++;
 
-    // 쥐돌이 로직: 귀속 이동 및 동반 추락
     enemies.forEach(e => {
         if (e.parentPlatform.isBroken || e.isFalling) {
             e.isFalling = true;
             e.fallVel += PHYSICS.gravity;
-            e.y += e.fallVel; // 발판과 함께 추락
+            e.y += e.fallVel; 
         } else {
             e.relX += (e.speed * e.scaleX);
             if (e.relX <= 0) { e.scaleX = 1; e.relX = 0; }
@@ -130,7 +136,6 @@ function update() {
 
         if (frameCount % 10 === 0) e.frame = (e.frame + 1) % 2;
 
-        // 충돌 체크 (추락 중에는 무시하거나 원하시면 유지 가능)
         const charFootY = 752 + currentY;
         const charCenter = 196 + posX;
         if (!e.isFalling && Math.abs(charCenter - (e.x + e.w/2)) < 30 && Math.abs(charFootY - 45 - e.y) < 25) {
@@ -167,7 +172,6 @@ function update() {
 
     if (charFootY > 950) init();
 
-    // 렌더링
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .enemy').forEach(el => el.remove());
     
@@ -185,7 +189,7 @@ function update() {
         const div = document.createElement('div');
         div.className = 'enemy';
         div.style.left = Math.floor(e.x) + 'px'; div.style.top = Math.floor(e.y) + 'px';
-        div.style.width = '54px'; div.style.height = '54px'; // 정사이즈 고정
+        div.style.width = '54px'; div.style.height = '54px'; 
         div.style.backgroundImage = `url('${ENEMY_IMGS[e.frame]}')`;
         div.style.transform = `scaleX(${e.scaleX})`;
         stage.appendChild(div);
