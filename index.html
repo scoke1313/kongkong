@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 저밀도 오버플로우 패치</title>
+    <title>콩콩춘식 - 스크롤 완전 동기화 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -95,30 +95,21 @@ class BackgroundBrick {
     }
 
     setSafePosition(targetY, isInitial) {
-        let attempts = 0;
-        let safe = false;
-        const bW = this.img.width / 2; // 절반 사이즈 기준 너비
-
-        while (!safe && attempts < 15) {
-            // 밖으로 삐져나오게 설정 (좌우 경계 밖으로 최대 너비의 50%까지 랜덤 이동)
-            this.x = Math.random() * (PHYSICS.stageWidth + bW) - bW;
-            this.y = isInitial ? Math.random() * PHYSICS.stageHeight : targetY;
-            
-            // 벽돌끼리 겹치지 않게 여유 공간 체크
-            safe = bgBricks.every(b => Math.sqrt((this.x - b.x)**2 + (this.y - b.y)**2) > 100);
-            attempts++;
-        }
+        const bW = this.img.width / 2;
+        // 화면 양옆으로 랜덤하게 삐져나올 수 있도록 배치
+        this.x = Math.random() * (PHYSICS.stageWidth + bW) - bW;
+        this.y = isInitial ? Math.random() * PHYSICS.stageHeight : targetY;
     }
 
     draw() { 
         if (this.img.complete) {
-            // 소수점 제거 렌더링으로 지터 방지
+            // Math.floor로 정수 좌표 고정하여 떨림 및 밀림 방지
             bgCtx.drawImage(this.img, Math.floor(this.x), Math.floor(this.y), this.img.width/2, this.img.height/2); 
         } 
     }
 }
 
-// 입력 제어 (기존 동일)
+// 조작 로직 (기존 동일)
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
 const scoreEl = document.getElementById('score-board');
@@ -158,32 +149,29 @@ function createPlatformData(yPos) {
     let woodProbability = Math.min(0.05 + (score / 6000) * 0.85, 0.9);
     const isWood = Math.random() < woodProbability;
     const typeKey = isWood ? 'wood' : 'block';
-    let moveType = (Math.random() > 0.9) ? 'h' : (Math.random() > 0.85 ? 'v' : 'normal');
-
-    // 벽돌 생성 빈도 대폭 하향 (0.4 -> 0.15)
-    if (Math.random() < 0.15) bgBricks.push(new BackgroundBrick(yPos - 100));
+    
+    // 벽돌 생성 확률 낮춤 (한 화면 5개 이하 유지용)
+    if (Math.random() < 0.15) bgBricks.push(new BackgroundBrick(yPos - 50));
 
     return {
         x: Math.random() * (PHYSICS.stageWidth - width),
         y: yPos, w: width, h: PLATFORM_H,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
         isWood: isWood, durability: isWood ? 2 : 999,
-        type: moveType,
+        type: (Math.random() > 0.9) ? 'h' : 'normal',
         speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
-        offset: Math.random() * Math.PI * 2,
-        initialY: yPos, isBroken: false
+        isBroken: false
     };
 }
 
 function initPlatforms() {
     score = 0; scoreEl.innerText = "0m";
     platforms = []; bgBricks = []; bgScrollY = 0;
-    // 초기 벽돌 개수 하향 (8개 -> 3개)
+    // 초기 벽돌 3개만 생성
     for(let i=0; i<3; i++) bgBricks.push(new BackgroundBrick(0, true));
     let lastY = 752;
     for (let i = 0; i < 5; i++) {
-        const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
-        lastY -= nextGap;
+        lastY -= (PHYSICS.minGap + Math.random() * 40);
         platforms.push(createPlatformData(lastY));
     }
     platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'block_1.png', isWood: false, durability: 999, type: 'normal' }); 
@@ -195,13 +183,12 @@ initPlatforms();
 function update() {
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    const limit = (PHYSICS.stageWidth / 2) - 43;
-    if (posX < -limit) posX = -limit;
-    if (posX > limit) posX = limit;
+    posX = Math.max(-153.5, Math.min(153.5, posX));
 
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
+    // 배경 렌더링
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
     if (bgPattern) {
         bgCtx.save();
@@ -213,19 +200,15 @@ function update() {
     bgBricks.forEach(brick => brick.draw());
 
     platforms.forEach(p => {
-        if (p.isBroken) return;
-        if (p.type === 'h') {
+        if (!p.isBroken && p.type === 'h') {
             p.x += p.speed;
             if (p.x <= 0 || p.x + p.w >= PHYSICS.stageWidth) p.speed *= -1;
-        } else if (p.type === 'v') {
-            p.offset += 0.04;
-            p.y = p.initialY + Math.sin(p.offset) * 25;
         }
     });
 
     if (motionTimer > 0) {
         motionTimer--;
-        if (motionTimer < PHYSICS.motionHold - 2) loadRive('kongsik_ingame_air.riv');
+        if (motionTimer < 10) loadRive('kongsik_ingame_air.riv');
     } else if (velocityY > 2) {
         loadRive('kongsik_ingame_land.riv');
     }
@@ -240,7 +223,7 @@ function update() {
                 loadRive('kongsik_ingame_land.riv');
                 velocityY = PHYSICS.jumpPower; 
                 currentY = p.y - 752; 
-                motionTimer = PHYSICS.motionHold; 
+                motionTimer = 12; 
                 if (p.isWood) {
                     p.durability--;
                     if (p.durability <= 0) p.isBroken = true;
@@ -249,24 +232,22 @@ function update() {
         });
     }
 
+    // ★ 스크롤 업데이트 (완벽 동기화 구간) ★
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
         score += Math.floor(diff);
-        
-        bgScrollY += diff; 
         scoreEl.innerText = score + "m";
         
+        // 플랫폼, 배경 타일, 벽돌을 한꺼번에 같은 diff만큼 이동
+        bgScrollY += diff; 
         platforms.forEach(p => {
             p.y += diff;
-            if (p.initialY !== undefined) p.initialY += diff;
             if (p.y > PHYSICS.stageHeight) {
                 const highestY = Math.min(...platforms.map(plat => plat.y));
-                const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
-                Object.assign(p, createPlatformData(highestY - nextGap));
+                Object.assign(p, createPlatformData(highestY - 170));
             }
         });
-        
         bgBricks.forEach(b => { b.y += diff; });
         bgBricks = bgBricks.filter(b => b.y < PHYSICS.stageHeight + 200);
     }
