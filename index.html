@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 정밀 튜닝 버전</title>
+  <title>콩콩춘식 - 감속 0.1 정밀 튜닝</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -72,15 +72,15 @@
   function checkReady() { if(landReady && airReady) { status.innerText = "준비 완료! 🐯"; btnStart.classList.remove('hidden'); } }
   init();
 
-  // --- 사용자 정의 물리 및 모션 설정 ---
+  // --- 물리 및 모션 설정 ---
   let jumpPower = -25;    
-  let gravity = 1.1;      // 그래비티 1.1 적용
+  let gravity = 1.1;      
   let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
 
   let isSpringing = false; 
   let landLockTimer = 0; 
   const MIN_LAND_TIME = 250; // 유지 0.25초
-  const SPRING_DELAY = 200;  // 웅크림 작동(물리 정지) 0.2초
+  const SPRING_DELAY = 200;  // 작동(물리 정지/감속) 0.2초
 
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ lastDir = -1; } 
@@ -93,47 +93,45 @@
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
-    // 물리 로직 (isSpringing 상태일 때는 속도 0)
     if (isSpringing) {
-      p.vy = 0; // 감속 0 적용 (즉시 정지)
+      p.vy *= 0.1; // 감속 0.1 적용: 바닥에 닿을 때 90% 감속
     } else {
       p.vy += gravity;
     }
     p.y += p.vy;
 
-    // 바닥 충돌 시 (LAND 모션 시작)
+    // 1. 착지 시 (1번 모션 리셋 및 재생 보장)
     if (p.y > 600 && !isSpringing && p.vy > 0) {
       p.y = 600;
-      p.vy = 0; 
       isSpringing = true;
-      landLockTimer = MIN_LAND_TIME; // 0.25초 유지 타이머 시작
+      landLockTimer = MIN_LAND_TIME; 
       
-      setLayer(landCanvas); 
-      landRive.scrub("State Machine 1", 0);
-      landRive.play("State Machine 1");
+      if (!landCanvas.classList.contains('active-chun')) {
+        setLayer(landCanvas); 
+        landRive.pause("State Machine 1");
+        landRive.scrub("State Machine 1", 0);
+        landRive.play("State Machine 1");
+      }
 
-      // 0.2초 작동 후 튕겨나감
       setTimeout(() => {
         p.vy = jumpPower;
         isSpringing = false;
       }, SPRING_DELAY);
     } 
 
-    // 모션 전환 로직 (AIR 모션 멈춤 방지)
+    // 2. 공중 상승 시 (2번 모션 멈춤 방지)
     if (landLockTimer > 0) {
       landLockTimer -= dt;
     } 
     else if (p.vy < 0) {
       if (!airCanvas.classList.contains('active-chun')) {
         setLayer(airCanvas);
-        // 공중 모션 강제 리프레시 로직
         airRive.pause("State Machine 1");
         airRive.scrub("State Machine 1", 0);
         airRive.play("State Machine 1");
       }
     }
 
-    // 좌표 및 시선 업데이트
     [landCanvas, airCanvas].forEach(c => {
       c.style.left = (p.x - 43) + 'px';
       c.style.top = (p.y - 69) + 'px';
