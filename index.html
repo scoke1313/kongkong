@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 네비게이션 위치만 보정</title>
+    <title>콩콩춘식 - 상단 UI 전면 개편</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,27 +13,32 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 네비게이션: 다른 요소 영향 없이 본인만 위로 이동 --- */
+        /* --- 상단 네비게이션 ('X' 버튼) --- */
         #nav-bar {
-            position: absolute; 
-            top: -25px; /* 네비게이션만 상단으로 밀착 */
-            left: 0; 
-            width: 393px; 
-            z-index: 9999; 
-            cursor: pointer;
-            line-height: 0;
+            position: absolute; top: -25px; left: 0; width: 393px; 
+            z-index: 9999; cursor: pointer;
         }
-        
-        #nav-bar img {
-            width: 100%;
-            height: auto;
-            display: block;
+        #nav-bar img { width: 100%; height: auto; display: block; }
+
+        /* --- 상단 캡슐 UI 컨테이너 --- */
+        .header-ui-container {
+            position: absolute; top: 35px; left: 0; width: 100%;
+            display: flex; justify-content: space-between;
+            padding: 0 20px; box-sizing: border-box; z-index: 1000;
         }
 
-        /* 다른 UI는 원래 위치 그대로 유지 */
-        #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
-        #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
+        /* 공통 캡슐 스타일 */
+        .ui-capsule {
+            display: flex; align-items: center;
+            background: #FFFFFF; border: 2px solid #F3EDE2;
+            border-radius: 25px; padding: 5px 15px 5px 8px;
+            min-width: 100px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
 
+        .ui-icon { width: 28px; height: 28px; margin-right: 8px; object-fit: contain; }
+        .ui-text { font-size: 20px; font-weight: 800; color: #5c3e34; font-family: sans-serif; }
+
+        /* --- 게임 요소 --- */
         #canvas-container {
             position: absolute; width: 86px !important; height: 138px !important;
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
@@ -58,7 +63,6 @@
             z-index: 120; pointer-events: none; transition: transform 0.8s, opacity 0.8s; 
         }
         
-        .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
         .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
@@ -73,8 +77,16 @@
         <img src="Navigation.png" alt="Navigation">
     </div>
 
-    <div id="score-board">0m</div>
-    <div id="rate-board">Rate: +0.00%</div>
+    <div class="header-ui-container">
+        <div class="ui-capsule">
+            <img src="time_s.png" class="ui-icon" alt="time">
+            <span id="score-board" class="ui-text">0s</span>
+        </div>
+        <div class="ui-capsule">
+            <img src="clover_s.png" class="ui-icon" alt="clover">
+            <span id="rate-board" class="ui-text">0.00%</span>
+        </div>
+    </div>
 
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
@@ -136,7 +148,7 @@ function createPlatformData(yPos) {
 function initPlatforms() {
     document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item, .pickup-effect').forEach(el => el.remove());
     score = 0; cloverRate = 0; isSuperJumping = false;
-    scoreEl.innerText = "0m"; rateEl.innerText = "Rate: +0.00%";
+    scoreEl.innerText = "0s"; rateEl.innerText = "0.00%";
     bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
     canvasCont.classList.remove('gold-glow');
     platforms = []; 
@@ -167,7 +179,7 @@ function update() {
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
-                        cloverRate += 0.1; rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
+                        cloverRate += 0.1; rateEl.innerText = `${cloverRate.toFixed(2)}%`;
                         let eff = document.createElement('div');
                         eff.className = 'pickup-effect'; 
                         eff.style.left = (ix + 25 - 80) + 'px'; eff.style.top = (iy - 40) + 'px'; 
@@ -188,8 +200,17 @@ function update() {
     });
     if (charFootY > 1050) initPlatforms();
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
+    
+    // 점수 업데이트 (참고 이미지에 맞춰 초 단위 느낌으로 변경)
+    if (currentY < -250) {
+        let diff = -250 - currentY; currentY = -250; score += diff; 
+        scoreEl.innerText = Math.floor(score * 0.01) + "s";
+        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
+        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (50 + Math.random() * 160))); p.isBroken = false; } });
+    }
+
     const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .mouse-enemy, .game-item').forEach(el => el.remove());
     platforms.forEach(p => {
         if (!p.isBroken) {
             const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`;
