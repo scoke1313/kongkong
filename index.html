@@ -28,24 +28,17 @@
 
   <div id="start" class="overlay">
     <h1>콩콩춘식</h1>
-    <div class="sub">
-      좌/우로 이동해서 발판을 밟고 올라가요<br>
-      금리 아이템을 먹고 적금 만기에 도전하세요!
-    </div>
+    <div class="sub">로딩 중일 수 있습니다. 잠시만 기다려주세요!</div>
     <button class="btn" id="btnStart">게임 시작</button>
   </div>
 
   <div id="over" class="overlay hidden">
     <div style="background:#fff;color:#111827;padding:22px;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:min(360px,86%)">
       <div style="font-weight:1000;">적금 만기!</div>
-      <div style="opacity:.7;margin-top:6px;">최종 금리</div>
-      <div style="font-size:52px;font-weight:1100;color:#D1180B;margin-top:8px;">
-        <span id="final">2.0</span>%
-      </div>
+      <div style="font-size:52px;font-weight:1100;color:#D1180B;margin-top:8px;"><span id="final">2.0</span>%</div>
     </div>
     <button class="btn" id="btnRetry">다시 하기</button>
   </div>
-
   <div id="touchL"></div>
   <div id="touchR"></div>
 </div>
@@ -62,24 +55,25 @@
   const startOverlay = document.getElementById('start');
   const overOverlay = document.getElementById('over');
 
-  // --- Rive 초기화 설정 ---
+  // --- Rive 설정 보강 ---
   const RIVE_SIZE = { w: 86, h: 156 };
-  const offscreenCanvas = document.createElement('canvas');
-  offscreenCanvas.width = RIVE_SIZE.w;
-  offscreenCanvas.height = RIVE_SIZE.h;
-
   let kongsikRive = null;
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = RIVE_SIZE.w;
+  offCanvas.height = RIVE_SIZE.h;
+
   const r = new rive.Rive({
-    src: 'kongsik_ingame.riv', // 파일명 매칭
-    canvas: offscreenCanvas,
+    src: './kongsik_ingame.riv', // 경로 명시
+    canvas: offCanvas,
     autoplay: true,
     onLoad: () => {
       r.resizeDrawingSurfaceToCanvas();
       kongsikRive = r;
+      console.log("Rive Loaded Successfully");
     },
+    onLoadError: () => console.error("Rive File Load Failed! Check local server."),
   });
 
-  // input
   const keys = {left:false, right:false};
   let lastInputDir = 1;
   window.addEventListener('keydown',(e)=>{
@@ -91,32 +85,20 @@
     if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false;
   });
 
-  const touchL=document.getElementById('touchL');
-  const touchR=document.getElementById('touchR');
+  const touchL=document.getElementById('touchL'), touchR=document.getElementById('touchR');
   touchL.addEventListener('touchstart',(e)=>{e.preventDefault();keys.left=true;lastInputDir=-1;},{passive:false});
   touchL.addEventListener('touchend',(e)=>{e.preventDefault();keys.left=false;},{passive:false});
   touchR.addEventListener('touchstart',(e)=>{e.preventDefault();keys.right=true;lastInputDir= 1;},{passive:false});
   touchR.addEventListener('touchend',(e)=>{e.preventDefault();keys.right=false;},{passive:false});
 
-  // utils
   const rand=(a,b)=>a+Math.random()*(b-a);
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function rr(x,y,w,h,r){
-    r=Math.min(r,w/2,h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r);
-    ctx.arcTo(x,y,x+w,y,r);
-    ctx.closePath();
+    r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
   }
 
-  // physics (기존 gpt_0.9 설정값 유지)
-  const GR=0.42, JUMP=-11.2, SPEED=6.3;
-  const PW=120, PH=16, GAP=92;
-  const ITEM={chance:0.16, maxAlive:3};
-
+  const GR=0.42, JUMP=-11.2, SPEED=6.3, PW=120, PH=16, GAP=92;
   const clouds=[];
   function initClouds(){
     clouds.length=0;
@@ -126,267 +108,103 @@
     }
   }
   function drawCloud(c){
-    ctx.save(); ctx.globalAlpha=c.a; ctx.fillStyle='#fff';
-    ctx.beginPath();
-    ctx.ellipse(c.x,c.y,c.w*0.28,c.h*0.52,0,0,Math.PI*2);
-    ctx.ellipse(c.x+c.w*0.18,c.y-c.h*0.18,c.w*0.22,c.h*0.46,0,0,Math.PI*2);
-    ctx.ellipse(c.x-c.w*0.18,c.y-c.h*0.10,c.w*0.20,c.h*0.42,0,0,Math.PI*2);
-    ctx.ellipse(c.x+c.w*0.36,c.y+c.h*0.05,c.w*0.18,c.h*0.38,0,0,Math.PI*2);
-    ctx.fill(); ctx.restore();
-  }
-  function updateClouds(){
-    for(const c of clouds){
-      c.x-=c.v;
-      if(c.x<-240-c.w){
-        const s=rand(0.55,1.35);
-        c.x=canvas.width+rand(40,240);
-        c.y=rand(50,canvas.height*0.75);
-        c.v=rand(0.10,0.45);
-        c.a=rand(0.35,0.75);
-        c.w=120*s; c.h=44*s;
-      }
-      drawCloud(c);
-    }
+    ctx.save(); ctx.globalAlpha=c.a; ctx.fillStyle='#fff'; ctx.beginPath();
+    ctx.ellipse(c.x,c.y,c.w*0.28,c.h*0.52,0,0,Math.PI*2); ctx.fill(); ctx.restore();
   }
 
   class Platform{
-    constructor(x,y,isStart=false){
-      this.x=x; this.y=y; this.w=PW; this.h=PH;
-      this.isStart=isStart; this.breaking=false; this.broken=false; this.t=0;
-    }
-    update(){
-      if(this.breaking && !this.broken){
-        this.t+=0.18;
-        if(this.t>=1) this.broken=true;
-      }
-    }
+    constructor(x,y,isStart=false){ this.x=x; this.y=y; this.w=PW; this.h=PH; this.isStart=isStart; this.breaking=false; this.broken=false; this.t=0; }
+    update(){ if(this.breaking && !this.broken){ this.t+=0.18; if(this.t>=1) this.broken=true; } }
     draw(){
       if(this.broken) return;
-      const wob=this.breaking?Math.sin(this.t*10)*1.1:0;
-      const a=this.breaking?(1-this.t):1;
-      ctx.save(); ctx.globalAlpha=a;
-      ctx.fillStyle='rgba(0,0,0,0.10)'; ctx.fillRect(this.x+5,this.y+5,this.w,this.h);
-      ctx.fillStyle='#C98B4B'; rr(this.x+wob,this.y,this.w,this.h,8); ctx.fill();
-      ctx.fillStyle='#9CCC65'; rr(this.x+wob,this.y,this.w,7,8); ctx.fill();
-      ctx.strokeStyle='rgba(0,0,0,0.20)'; ctx.lineWidth=2; rr(this.x+wob,this.y,this.w,this.h,8); ctx.stroke();
-      ctx.restore();
+      ctx.save(); ctx.globalAlpha=this.breaking?(1-this.t):1;
+      ctx.fillStyle='#C98B4B'; rr(this.x,this.y,this.w,this.h,8); ctx.fill();
+      ctx.fillStyle='#9CCC65'; rr(this.x,this.y,this.w,7,8); ctx.fill(); ctx.restore();
     }
   }
 
   class Item{
-    constructor(x,y){
-      this.x=x; this.y=y; this.t=Math.random()*Math.PI*2;
-      this.value=Math.random()>0.72?0.2:0.1;
-      this.collected=false;
-    }
+    constructor(x,y){ this.x=x; this.y=y; this.t=Math.random()*Math.PI*2; this.value=Math.random()>0.72?0.2:0.1; this.collected=false; }
     draw(){
-      if(this.collected) return;
-      this.t+=0.09;
-      const fy=Math.sin(this.t)*3;
-      ctx.save(); ctx.translate(this.x,this.y+fy);
-      ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2);
-      ctx.fillStyle=this.value>0.15?'#FFD166':'#8BE28B';
-      ctx.fill();
-      ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.stroke();
-      ctx.fillStyle='#111827'; ctx.font='1000 12px Pretendard, sans-serif';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(`+${this.value.toFixed(1)}%`,0,0);
-      ctx.restore();
+      if(this.collected) return; this.t+=0.09; const fy=Math.sin(this.t)*3;
+      ctx.save(); ctx.translate(this.x,this.y+fy); ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2);
+      ctx.fillStyle=this.value>0.15?'#FFD166':'#8BE28B'; ctx.fill();
+      ctx.fillStyle='#111827'; ctx.font='1000 12px sans-serif'; ctx.textAlign='center'; ctx.fillText(`+${this.value.toFixed(1)}%`,0,4); ctx.restore();
     }
   }
 
-  const particles=[];
-  class Particle{
-    constructor(x,y){
-      this.x=x; this.y=y; this.vx=(Math.random()-0.5)*5; this.vy=(Math.random()-0.9)*5;
-      this.life=1; this.s=5; this.color=Math.random()>0.5?'#C98B4B':'#9CCC65';
-    }
-    update(){ this.x+=this.vx; this.y+=this.vy; this.vy+=0.32; this.life-=0.065; this.s*=0.98; }
-    draw(){ ctx.save(); ctx.globalAlpha=Math.max(0,this.life); ctx.fillStyle=this.color; ctx.fillRect(this.x,this.y,this.s,this.s); ctx.restore(); }
-  }
-
-  let platforms=[], items=[];
+  let platforms=[], items=[], particles=[];
   let score=2.0, isOver=false, raf=0;
-
-  const p={
-    x:0,y:0,vx:0,vy:0,
-    hitW:30, hitH:54,
-    landT:999,
-    t:0, tilt:0, tiltV:0,
-    holding: false,
-    jumpDelay: 0,
-    holdY: 0
-  };
-
-  function spring(cur, vel, target, k, damp, dt){
-    vel += (target-cur)*k*dt;
-    vel *= Math.pow(damp, dt*60);
-    cur += vel;
-    return {cur, vel};
-  }
+  const p={ x:0,y:0,vx:0,vy:0, hitH:54, t:0, tilt:0, tiltV:0, holding:false, jumpDelay:0, holdY:0 };
 
   function drawChun(dt){
-    const moveDir=(keys.right?1:0)+(keys.left?-1:0);
-    const tiltTarget=moveDir*0.09;
-    
-    p.t += dt*8.0;
-    const bobY = Math.sin(p.t)*1.8;
-
-    let a=spring(p.tilt,p.tiltV,tiltTarget,35,0.15,dt); p.tilt=a.cur; p.tiltV=a.vel;
+    p.t += dt*8.0; const bobY = Math.sin(p.t)*1.8;
+    const tiltTarget=((keys.right?1:0)+(keys.left?-1:0))*0.09;
+    p.tilt += (tiltTarget-p.tilt)*0.1;
 
     ctx.save();
-    // 발판 밟는 판정을 고려하여 y 위치를 살짝 조정합니다.
-    ctx.translate(p.x, p.y - 35 + bobY);
+    ctx.translate(p.x, p.y - 35 + bobY); // 춘식이 중심점 맞추기
     if(lastInputDir===1) ctx.scale(-1,1);
     ctx.rotate(p.tilt);
 
     if(kongsikRive){
-      ctx.drawImage(offscreenCanvas, -RIVE_SIZE.w/2, -RIVE_SIZE.h/2, RIVE_SIZE.w, RIVE_SIZE.h);
+      // Rive가 로드되었을 때만 그리기
+      ctx.drawImage(offCanvas, -RIVE_SIZE.w/2, -RIVE_SIZE.h/2);
     } else {
-      // 로딩 중 임시 사각형
-      ctx.fillStyle='#FEE500';
-      ctx.fillRect(-20, -30, 40, 60);
+      // 로딩 중일 때는 노란색 사각형으로 표시
+      ctx.fillStyle='#FEE500'; ctx.fillRect(-20,-30,40,60);
     }
     ctx.restore();
   }
 
-  function addPlatform(y){
-    const x=rand(0, canvas.width-PW);
-    platforms.push(new Platform(x,y,false));
-    const alive = items.filter(it=>!it.collected).length;
-    if(alive<ITEM.maxAlive && Math.random()<ITEM.chance){
-      items.push(new Item(x+PW/2, y-42));
+  function reset(){
+    isOver=false; score=2.0; elRate.textContent="2.0"; initClouds();
+    platforms=[]; items=[]; p.x=canvas.width/2; p.y=canvas.height-220; p.vx=0; p.vy=-10;
+    platforms.push(new Platform(canvas.width/2-PW/2, canvas.height-70, true));
+    for(let i=0;i<8;i++) {
+        let x=rand(0, canvas.width-PW), y=canvas.height-170-i*GAP;
+        platforms.push(new Platform(x,y));
     }
   }
 
-  function reset(){
-    isOver=false;
-    score=2.0; elRate.textContent=score.toFixed(1);
-    initClouds();
-    platforms=[]; items=[]; particles.length=0;
-
-    p.x=canvas.width/2;
-    p.y=canvas.height-220;
-    p.vx=0; p.vy=-10;
-    p.landT=999;
-    p.t=0; p.tilt=p.tiltV=0;
-    p.holding=false; p.jumpDelay=0;
-
-    platforms.push(new Platform(canvas.width/2-PW/2, canvas.height-70, true));
-    for(let i=0;i<8;i++) addPlatform(canvas.height-170-i*GAP);
-  }
-
-  function gameOver(){
-    isOver=true;
-    cancelAnimationFrame(raf);
-    elFinal.textContent=score.toFixed(1);
-    overOverlay.classList.remove('hidden');
-  }
-
-  let lastTime = performance.now();
   function loop(now){
     if(isOver) return;
-    let dt = Math.min(0.033, (now-lastTime)/1000);
-    lastTime = now;
-
-    if(p.holding) dt *= 0.7; // 착지 딜레이 중 약간 느리게
-
+    let dt = Math.min(0.033, (now-lastTime)/1000); lastTime = now;
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    updateClouds();
-
-    if(keys.left && !keys.right) p.vx = -SPEED;
-    else if(keys.right && !keys.left) p.vx = SPEED;
-    else p.vx *= 0.82;
-
-    p.x += p.vx;
-    if(p.x < -20) p.x = canvas.width + 20;
-    if(p.x > canvas.width + 20) p.x = -20;
+    for(const c of clouds){ c.x-=c.v; drawCloud(c); }
+    
+    if(keys.left) p.vx = -SPEED; else if(keys.right) p.vx = SPEED; else p.vx *= 0.82;
+    p.x += p.vx; if(p.x < -20) p.x = canvas.width + 20; if(p.x > canvas.width + 20) p.x = -20;
 
     const prevY = p.y;
+    p.vy += GR; p.y += p.vy;
 
-    if(p.holding){
-      p.jumpDelay -= dt;
-      p.vy = 0; p.y = p.holdY;
-      if(p.jumpDelay <= 0){
-        p.holding = false;
-        p.vy = JUMP * 1.08;
-      }
-    } else {
-      p.vy += GR;
-      p.y += p.vy;
-    }
-
-    if(!p.holding && p.y < canvas.height/2.6 && p.vy < 0){
-      const dy = -p.vy;
-      p.y += dy;
+    if(p.y < canvas.height/2.6 && p.vy < 0){
+      const dy = -p.vy; p.y += dy;
       for(const pl of platforms) pl.y += dy;
       for(const it of items) it.y += dy;
-      for(const prt of particles) prt.y += dy;
-      const top = platforms[platforms.length-1];
-      if(top && top.y > GAP) addPlatform(top.y - GAP);
     }
 
-    for(const pl of platforms){ pl.update(); pl.draw(); }
-
-    if(!p.holding && p.vy > 0){
-      for(const pl of platforms){
-        if(pl.broken) continue;
-        const footPrev = prevY + p.hitH/2;
-        const footNow  = p.y + p.hitH/2;
-        const withinX = (p.x > pl.x-8) && (p.x < pl.x+pl.w+8);
-        const crossY  = (footPrev <= pl.y) && (footNow >= pl.y);
-
-        if(withinX && crossY){
-          p.y = pl.y - p.hitH/2;
-          p.holding = true;
-          p.jumpDelay = 0.06;
-          p.holdY = p.y;
-          if(!pl.isStart){
-            pl.breaking=true;
-            for(let k=0;k<8;k++) particles.push(new Particle(pl.x+pl.w/2, pl.y));
-          }
-          break;
-        }
+    for(const pl of platforms){
+      pl.update(); pl.draw();
+      if(p.vy > 0 && !pl.broken && p.x > pl.x-8 && p.x < pl.x+pl.w+8 && prevY+27 <= pl.y && p.y+27 >= pl.y){
+        p.y = pl.y - 27; p.vy = JUMP; if(!pl.isStart) pl.breaking=true;
       }
     }
 
     for(const it of items){
       it.draw();
-      if(it.collected) continue;
-      const dx=Math.abs(p.x-it.x), dy=Math.abs(p.y-it.y);
-      if(dx<38 && dy<42){
-        it.collected=true;
-        score += it.value;
-        elRate.textContent = score.toFixed(1);
-      }
+      if(!it.collected && Math.abs(p.x-it.x)<30 && Math.abs(p.y-it.y)<30){ it.collected=true; score+=it.value; elRate.textContent=score.toFixed(1); }
     }
 
-    for(const prt of particles){ prt.update(); prt.draw(); }
-    for(let i=particles.length-1;i>=0;i--) if(particles[i].life<=0) particles.splice(i,1);
-
-    platforms = platforms.filter(pl=>pl.y<canvas.height+140 && !pl.broken);
-    items = items.filter(i=>!i.collected && i.y<canvas.height+220);
-
     drawChun(dt);
-
-    if(p.y > canvas.height + 100){ gameOver(); return; }
+    if(p.y > canvas.height + 100){ isOver=true; overOverlay.classList.remove('hidden'); elFinal.textContent=score.toFixed(1); }
     raf = requestAnimationFrame(loop);
   }
 
-  document.getElementById('btnStart').onclick = () => {
-    startOverlay.classList.add('hidden');
-    overOverlay.classList.add('hidden');
-    reset();
-    lastTime = performance.now();
-    raf = requestAnimationFrame(loop);
-  };
-  document.getElementById('btnRetry').onclick = () => {
-    overOverlay.classList.add('hidden');
-    reset();
-    lastTime = performance.now();
-    raf = requestAnimationFrame(loop);
-  };
-
+  let lastTime = performance.now();
+  document.getElementById('btnStart').onclick = () => { startOverlay.classList.add('hidden'); reset(); lastTime=performance.now(); raf=requestAnimationFrame(loop); };
+  document.getElementById('btnRetry').onclick = () => { overOverlay.classList.add('hidden'); reset(); lastTime=performance.now(); raf=requestAnimationFrame(loop); };
   initClouds();
 })();
 </script>
