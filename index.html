@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 모션 복구 버전</title>
+  <title>콩콩춘식 - 캐릭터 고정 완료</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -11,14 +11,14 @@
     #game-container{position:relative;width:100%;max-width:480px;height:100%;max-height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
     
-    /* 필승 비법: 춘식이 전용 캔버스 (86x138 정확히 고정) */
+    /* 필승 비법: 춘식이 전용 캔버스 고정 */
     #chunCanvas { 
       position: absolute; 
       z-index: 2; 
       width: 86px !important; 
       height: 138px !important; 
       pointer-events: none; 
-      display: none;
+      display: none; /* 로딩 전 숨김 */
     }
     
     #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
@@ -54,7 +54,7 @@
   let landRive = null, airRive = null, currentRive = null;
   let landReady = false, airReady = false;
 
-  // 1. 개별 로드 및 드로잉 표면 강제 초기화
+  // 1. 사라짐 방지: 각 인스턴스를 독립적으로 관리
   function initCharacter() {
     landRive = new rive.Rive({
       src: 'kongsik_ingame_land.riv',
@@ -63,7 +63,7 @@
       stateMachines: 'State Machine 1',
       autoplay: false,
       onLoad: () => { 
-        landRive.resizeDrawingSurfaceToCanvas(); // 잘림 방지
+        landRive.resizeDrawingSurfaceToCanvas();
         landReady = true; checkStart(); 
       }
     });
@@ -75,7 +75,7 @@
       stateMachines: 'State Machine 1',
       autoplay: false,
       onLoad: () => { 
-        airRive.resizeDrawingSurfaceToCanvas(); // 잘림 방지
+        airRive.resizeDrawingSurfaceToCanvas();
         airReady = true; checkStart(); 
       }
     });
@@ -94,7 +94,6 @@
   const keys = { left: false, right: false };
   let platforms = [];
 
-  // 시선 반전 설정
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ keys.left=true; lastDir=1; } 
     if(e.code==='ArrowRight'){ keys.right=true; lastDir=-1; } 
@@ -117,10 +116,9 @@
     bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
     bgCtx.fillStyle = "#9CCC65"; 
 
-    // 모션 스위칭 (vy < 0 일 때 AIR 모션)
-    if (p.vy < 0 && airReady) {
+    // --- 2. 사라짐 방지 핵심 로직: 전환 시 투명화 차단 ---
+    if (p.vy < 0) { // 상승 중 (AIR 모션)
       if (currentRive !== airRive) {
-        if(currentRive) currentRive.stop();
         currentRive = airRive;
         currentRive.play(); 
       }
@@ -130,12 +128,10 @@
       bgCtx.fillRect(pl.x, pl.y, 120, 15);
       if(p.vy > 0 && p.x > pl.x-15 && p.x < pl.x+135 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) {
         p.vy = jumpPower;
-        if(landReady) {
-          if(currentRive) currentRive.stop();
-          currentRive = landRive;
-          currentRive.scrub("State Machine 1", 0); // 처음부터 재생
-          currentRive.play("State Machine 1");
-        }
+        // 발판 충돌 시 (LAND 모션)
+        currentRive = landRive;
+        currentRive.scrub("State Machine 1", 0); // 프레임 초기화
+        currentRive.play("State Machine 1");
       }
     });
 
@@ -144,12 +140,14 @@
       platforms.forEach(pl => { pl.y += dy; if(pl.y > bgCanvas.height) { pl.y -= 92*8; pl.x = Math.random()*(bgCanvas.width-120); } });
     }
 
+    // 3. 렌더링 동기화
     if (currentRive) {
       chunCanvas.style.display = 'block';
       chunCanvas.style.left = (p.x - 43) + 'px';
-      chunCanvas.style.top = (p.y - 69) + 'px';
+      chunCanvas.style.top = (p.y - 69) + 'px'; 
       chunCanvas.style.transform = `scaleX(${lastDir})`; 
     }
+    
     if(p.y > bgCanvas.height + 150) reset();
     requestAnimationFrame(loop);
   }
@@ -158,9 +156,9 @@
     document.getElementById('start').classList.add('hidden'); 
     isRunning = true; 
     reset(); 
-    // 시작 시 표면 크기 재정렬 (잘림 방지 필살기)
-    if(landRive) landRive.resizeDrawingSurfaceToCanvas();
-    if(airRive) airRive.resizeDrawingSurfaceToCanvas();
+    // 시작할 때 서피스 크기 강제 재확정 (사라짐 방지)
+    landRive.resizeDrawingSurfaceToCanvas();
+    airRive.resizeDrawingSurfaceToCanvas();
     loop(performance.now()); 
   };
 })();
