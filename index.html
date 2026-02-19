@@ -3,19 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 86x138 반영판</title>
+  <title>콩콩춘식 - 캐릭터 복구 완료</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
     #game-container{position:relative;width:100%;max-width:480px;height:100%;max-height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
-    
-    /* 배경/발판 레이어 */
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
-    
-    /* 춘식이 레이어 (86x138 사이즈) */
+    /* 86x138 규격 고정 */
     #chunCanvas{position:absolute;z-index:2;width:86px;height:138px;pointer-events:none;display:none}
-    
     #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
     .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
@@ -51,16 +47,18 @@
   }
   window.addEventListener('resize', resize); resize();
 
-  // Rive 설정 (86x138)
   let kongsikLoaded = false;
-  const r = new rive.Rive({
-    [cite_start]src: 'kongsik_ingame.riv', [cite: 1]
+  let rInstance = null;
+
+  // 1. Rive 로드 및 강제 재생 설정 
+  rInstance = new rive.Rive({
+    src: 'kongsik_ingame.riv',
     canvas: chunCanvas,
-    [cite_start]artboard: 'Artboard', [cite: 1]
-    [cite_start]stateMachines: 'State Machine 1', [cite: 67]
+    artboard: 'Artboard',
+    stateMachines: 'State Machine 1',
     autoplay: true,
     onLoad: () => {
-      r.resizeDrawingSurfaceToCanvas();
+      rInstance.resizeDrawingSurfaceToCanvas();
       kongsikLoaded = true;
       status.innerText = "준비 완료! 🐯";
       btnStart.classList.remove('hidden');
@@ -105,11 +103,13 @@
       platforms.forEach(pl => { pl.y += dy; if(pl.y > bgCanvas.height) { pl.y -= 92*8; pl.x = Math.random()*(bgCanvas.width-120); } });
     }
 
-    // 캐릭터 캔버스 위치 업데이트 (86x138 규격 맞춰 오프셋 조정)
-    chunCanvas.style.display = 'block';
-    chunCanvas.style.left = (p.x - 43) + 'px';
-    chunCanvas.style.top = (p.y - 69) + 'px'; // 세로 138의 절반
-    chunCanvas.style.transform = `scaleX(${lastDir})`;
+    // 2. 캐릭터 위치 업데이트 (86x138 맞춰서 싱크)
+    if (kongsikLoaded) {
+      chunCanvas.style.display = 'block';
+      chunCanvas.style.left = (p.x - 43) + 'px';
+      chunCanvas.style.top = (p.y - 69) + 'px'; 
+      chunCanvas.style.transform = `scaleX(${lastDir})`;
+    }
 
     if(p.y > bgCanvas.height + 150) reset();
     requestAnimationFrame(loop);
@@ -117,7 +117,11 @@
 
   btnStart.onclick = () => {
     document.getElementById('start').classList.add('hidden');
-    isRunning = true; reset(); loop(performance.now());
+    isRunning = true; 
+    reset(); 
+    // 게임 시작 시 춘식이 상태 다시 체크 
+    if(rInstance) rInstance.play();
+    loop(performance.now());
   };
 })();
 </script>
