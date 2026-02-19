@@ -3,24 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 물리 최적화 버전</title>
+  <title>콩콩춘식 - 모션 반복 완벽 해결</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
     #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
-    
-    .chun-layer {
-      position: absolute;
-      width: 86px !important;
-      height: 138px !important;
-      pointer-events: none;
-      opacity: 0;
-      z-index: 2;
-    }
-    .active-chun { opacity: 1 !important; z-index: 3 !important; }
-    
+    .chun-layer {position:absolute;width:86px!important;height:138px!important;pointer-events:none;opacity:0;z-index:2}
+    .active-chun {opacity:1!important;z-index:3!important}
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,0.6);color:#fff;text-align:center;padding:24px}
     .btn{margin-top:18px;padding:14px 40px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
     .hidden{display:none!important}
@@ -31,96 +22,64 @@
   <canvas id="bgCanvas"></canvas>
   <canvas id="landCanvas" class="chun-layer"></canvas>
   <canvas id="airCanvas" class="chun-layer"></canvas>
-
   <div id="start" class="overlay">
     <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
     <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">로딩 중...</div>
     <button class="btn hidden" id="btnStart">게임 시작</button>
   </div>
 </div>
-
 <script>
 (() => {
   const landCanvas = document.getElementById('landCanvas'), airCanvas = document.getElementById('airCanvas');
   const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
-
   let landRive, airRive;
   let landReady = false, airReady = false;
 
   function init() {
-    landRive = new rive.Rive({
-      src: 'kongsik_ingame_land.riv',
-      canvas: landCanvas,
-      artboard: 'Artboard',
-      stateMachines: 'State Machine 1',
-      onLoad: () => { landReady = true; landRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
-    });
-    airRive = new rive.Rive({
-      src: 'kongsik_ingame_air.riv',
-      canvas: airCanvas,
-      artboard: 'Artboard',
-      stateMachines: 'State Machine 1',
-      onLoad: () => { airReady = true; airRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
-    });
+    landRive = new rive.Rive({ src: 'kongsik_ingame_land.riv', canvas: landCanvas, artboard: 'Artboard', stateMachines: 'State Machine 1', onLoad: () => { landReady = true; landRive.resizeDrawingSurfaceToCanvas(); checkReady(); } });
+    airRive = new rive.Rive({ src: 'kongsik_ingame_air.riv', canvas: airCanvas, artboard: 'Artboard', stateMachines: 'State Machine 1', onLoad: () => { airReady = true; airRive.resizeDrawingSurfaceToCanvas(); checkReady(); } });
   }
-
   function checkReady() { if(landReady && airReady) { status.innerText = "준비 완료! 🐯"; btnStart.classList.remove('hidden'); } }
   init();
 
-  // --- 물리 및 모션 설정 (부드러운 연결 최적화) ---
+  // 사용자 지정 물리 수치 적용
   let jumpPower = -25, gravity = 1.1; 
   let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
+  let isSpringing = false, landLockTimer = 0;
+  let lastState = "AIR"; // 상태 추적 변수 추가
 
-  let isSpringing = false; 
-  let landLockTimer = 0; 
-  const MIN_LAND_TIME = 250; 
-  const SPRING_DELAY = 200; 
+  const MIN_LAND_TIME = 250, SPRING_DELAY = 200; 
 
-  window.addEventListener('keydown', e => { 
-    if(e.code==='ArrowLeft'){ lastDir = -1; } 
-    if(e.code==='ArrowRight'){ lastDir = 1; } 
-  });
+  window.addEventListener('keydown', e => { if(e.code==='ArrowLeft'){ lastDir = -1; } if(e.code==='ArrowRight'){ lastDir = 1; } });
 
-  let lastTimestamp = 0;
   function loop(timestamp) {
     if(!isRunning) return;
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
-    if (isSpringing) {
-      // 개선: 갑자기 멈추지 않고 감속 수치(0.15)를 유지하며 부드럽게 감속
-      p.vy *= 0.15; 
-    } else {
-      p.vy += gravity;
-    }
+    if (isSpringing) { p.vy *= 0.15; } // 감속 0.15
+    else { p.vy += gravity; }
     p.y += p.vy;
 
-    // 1. 착지 시 (물리적 연결 보강)
+    // --- 핵심 로직: 상태 변화 시 딱 한 번만 실행 ---
     if (p.y > 600 && !isSpringing && p.vy > 0) {
-      p.y = 600;
-      isSpringing = true;
-      landLockTimer = MIN_LAND_TIME;
+      p.y = 600; isSpringing = true; landLockTimer = MIN_LAND_TIME;
+      
+      // 상태가 바뀌었을 때만 재생 (중복 실행 방지)
+      if (lastState !== "LAND") {
+        lastState = "LAND";
+        setLayer(landCanvas);
+        landRive.scrub("State Machine 1", 0);
+        landRive.play("State Machine 1");
+      }
+      setTimeout(() => { p.vy = jumpPower; isSpringing = false; }, SPRING_DELAY);
+    } 
 
-      // 착지 레이어 활성화 및 매번 재생 보장
-      setLayer(landCanvas);
-      landRive.pause("State Machine 1");
-      landRive.scrub("State Machine 1", 0);
-      landRive.play("State Machine 1");
-
-      // 비연속적 점프가 아닌, 감속 후 자연스러운 발사
-      setTimeout(() => {
-        p.vy = jumpPower;
-        isSpringing = false;
-      }, SPRING_DELAY);
-    }
-
-    // 2. 공중 상승 시 (전환 부드러움 확보)
-    if (landLockTimer > 0) {
-      landLockTimer -= dt;
-    } else if (p.vy < 0) {
-      if (!airCanvas.classList.contains('active-chun')) {
+    if (landLockTimer > 0) { landLockTimer -= dt; } 
+    else if (p.vy < 0) {
+      if (lastState !== "AIR") {
+        lastState = "AIR";
         setLayer(airCanvas);
-        airRive.pause("State Machine 1");
         airRive.scrub("State Machine 1", 0);
         airRive.play("State Machine 1");
       }
@@ -131,7 +90,6 @@
       c.style.top = (p.y - 69) + 'px';
       c.style.transform = `scaleX(${lastDir})`;
     });
-
     requestAnimationFrame(loop);
   }
 
@@ -141,13 +99,8 @@
     active.classList.add('active-chun');
   }
 
-  btnStart.onclick = () => {
-    document.getElementById('start').classList.add('hidden');
-    isRunning = true;
-    p.vy = jumpPower;
-    lastTimestamp = performance.now();
-    loop(lastTimestamp);
-  };
+  let lastTimestamp = 0;
+  btnStart.onclick = () => { document.getElementById('start').classList.add('hidden'); isRunning = true; p.vy = jumpPower; lastTimestamp = performance.now(); loop(lastTimestamp); };
 })();
 </script>
 </body>
