@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 컨트롤러 이미지 패치</title>
+    <title>콩콩춘식 - 발판 정의 변경 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -10,7 +10,7 @@
             position: relative; 
             width: 393px; 
             height: 852px; 
-            background: #FFFDF5; /* 배경 컬러 적용 */
+            background: #FFFDF5; 
             overflow: hidden; 
         }
         #canvas-container {
@@ -23,56 +23,36 @@
             z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
-        
         .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
-
-        /* 컨트롤러 스타일 */
         .controller {
-            position: absolute;
-            width: 80px;
-            height: 80px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            z-index: 50;
-            cursor: pointer;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
+            position: absolute; width: 80px; height: 80px;
+            background-size: contain; background-repeat: no-repeat;
+            z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
         }
-        #btn-left {
-            left: 30px;
-            bottom: 40px;
-            transform: scaleX(-1); /* 왼쪽 버튼 좌우 반전 */
-        }
-        #btn-right {
-            right: 30px;
-            bottom: 40px;
-        }
-        /* 초기 상태는 Default 이미지 */
+        #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
+        #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
+        #score-board {
+            position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold;
+            color: #5c3e34; z-index: 100; font-family: sans-serif;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
-    <div id="canvas-container">
-        <canvas id="canvas"></canvas>
-    </div>
-
+    <div id="score-board">0m</div>
+    <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
 const PHYSICS = {
-    gravity: 0.81,      
-    jumpPower: -18.9,   
-    moveSpeed: 7,
-    stageWidth: 393,
-    stageHeight: 852,
-    motionHold: 12,
-    minGap: 150,
-    maxGap: 190 
+    gravity: 0.81, jumpPower: -18.9, moveSpeed: 7,
+    stageWidth: 393, stageHeight: 852, motionHold: 12,
+    minGap: 150, maxGap: 190 
 };
 
 const PLATFORM_TYPES = {
@@ -82,50 +62,42 @@ const PLATFORM_TYPES = {
 const SIZES = [138, 98, 58];
 const PLATFORM_H = 22;
 
-let currentY = 0, velocityY = 0, posX = 0;
+let currentY = 0, velocityY = 0, posX = 0, score = 0;
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], motionTimer = 0, lastLoadedFile = "";
 
-// --- 컨트롤러 로직 업데이트 ---
+// 컨트롤러 로직
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
+const scoreEl = document.getElementById('score-board');
 
 function setBtnState(btn, isPressed) {
-    if (isPressed) {
-        btn.classList.remove('ctrl-default');
-        btn.classList.add('ctrl-pressed');
-    } else {
-        btn.classList.remove('ctrl-pressed');
-        btn.classList.add('ctrl-default');
-    }
+    btn.classList.toggle('ctrl-default', !isPressed);
+    btn.classList.toggle('ctrl-pressed', isPressed);
 }
 
-// 터치 이벤트 (모바일용)
-btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowLeft'] = true; setBtnState(btnLeft, true); });
-btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowLeft'] = false; setBtnState(btnLeft, false); });
-btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowRight'] = true; setBtnState(btnRight, true); });
-btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowRight'] = false; setBtnState(btnRight, false); });
+const handleInput = (key, isDown, btn) => { keys[key] = isDown; setBtnState(btn, isDown); };
+btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowLeft', true, btnLeft); });
+btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnLeft); });
+btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnRight); });
+btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnRight); });
 
-// 키보드 이벤트 (PC용)
 window.addEventListener('keydown', (e) => {
-    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = true; setBtnState(btnLeft, true); }
-    if (e.code === 'ArrowRight') { keys['ArrowRight'] = true; setBtnState(btnRight, true); }
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', true, btnRight);
 });
 window.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowLeft') { keys['ArrowLeft'] = false; setBtnState(btnLeft, false); }
-    if (e.code === 'ArrowRight') { keys['ArrowRight'] = false; setBtnState(btnRight, false); }
+    if (e.code === 'ArrowLeft') handleInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') handleInput('ArrowRight', false, btnRight);
 });
 
-// --- Rive 및 게임 물리 로직 ---
 function loadRive(fileName) {
     if (lastLoadedFile === fileName) return;
     lastLoadedFile = fileName;
     if (riveInstance) riveInstance.cleanup();
     riveInstance = new rive.Rive({
-        src: fileName,
-        canvas: document.getElementById('canvas'),
-        autoplay: true,
-        stateMachines: 'State Machine 1',
+        src: fileName, canvas: document.getElementById('canvas'),
+        autoplay: true, stateMachines: 'State Machine 1',
         onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); }
     });
 }
@@ -133,19 +105,20 @@ function loadRive(fileName) {
 function createPlatformData(yPos) {
     const sizeIdx = Math.floor(Math.random() * SIZES.length);
     const width = SIZES[sizeIdx];
-    const rand = Math.random();
-    const isBlock = rand < 0.25;
-    const typeKey = isBlock ? 'block' : 'wood';
-    let moveType = (rand > 0.9) ? 'h' : (rand > 0.8 ? 'v' : 'normal');
+    
+    // ★ 나무 발판 확률 계산 (점수가 높을수록 증가, 최대 80%) ★
+    let woodProbability = Math.min(0.1 + (score / 5000) * 0.7, 0.8);
+    const isWood = Math.random() < woodProbability;
+    const typeKey = isWood ? 'wood' : 'block';
+    
+    let moveType = (Math.random() > 0.9) ? 'h' : (Math.random() > 0.8 ? 'v' : 'normal');
 
     return {
         x: Math.random() * (PHYSICS.stageWidth - width),
-        y: yPos,
-        w: width,
-        h: PLATFORM_H,
+        y: yPos, w: width, h: PLATFORM_H,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
-        isBlock: isBlock,
-        durability: isBlock ? 2 : 999,
+        isWood: isWood,
+        durability: isWood ? 2 : 999, // 나무는 2번, 벽돌은 무적
         type: moveType,
         speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
         offset: Math.random() * Math.PI * 2,
@@ -155,6 +128,7 @@ function createPlatformData(yPos) {
 }
 
 function initPlatforms() {
+    score = 0; scoreEl.innerText = "0m";
     platforms = [];
     let lastY = 752;
     for (let i = 0; i < 5; i++) {
@@ -162,7 +136,8 @@ function initPlatforms() {
         lastY -= nextGap;
         platforms.push(createPlatformData(lastY));
     }
-    platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'wood_1.png', isBlock: false, durability: 999, type: 'normal' }); 
+    // 첫 발판은 무조건 벽돌
+    platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'block_1.png', isWood: false, durability: 999, type: 'normal' }); 
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -171,7 +146,6 @@ initPlatforms();
 function update() {
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    
     const limit = (PHYSICS.stageWidth / 2) - 43;
     if (posX < -limit) posX = -limit;
     if (posX > limit) posX = limit;
@@ -208,8 +182,11 @@ function update() {
                 velocityY = PHYSICS.jumpPower; 
                 currentY = p.y - 752; 
                 motionTimer = PHYSICS.motionHold; 
-                p.durability--;
-                if (p.durability <= 0) p.isBroken = true;
+                
+                if (p.isWood) {
+                    p.durability--;
+                    if (p.durability <= 0) p.isBroken = true;
+                }
             }
         });
     }
@@ -217,28 +194,26 @@ function update() {
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
+        score += Math.floor(diff); // 높이 점수 추가
+        scoreEl.innerText = score + "m";
         platforms.forEach(p => {
             p.y += diff;
             if (p.initialY !== undefined) p.initialY += diff;
             if (p.y > PHYSICS.stageHeight) {
                 const highestY = Math.min(...platforms.map(plat => plat.y));
                 const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
-                const newData = createPlatformData(highestY - nextGap);
-                Object.assign(p, newData);
-                p.isBroken = false; 
+                Object.assign(p, createPlatformData(highestY - nextGap));
             }
         });
     }
 
     if (charFootY > 950) {
-        currentY = 0; velocityY = PHYSICS.jumpPower; 
         initPlatforms();
+        currentY = 0; velocityY = PHYSICS.jumpPower; 
         loadRive('kongsik_ingame_air.riv');
     }
 
-    document.getElementById('canvas-container').style.transform = 
-        `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
-
+    document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
     renderPlatforms();
     requestAnimationFrame(update);
 }
@@ -251,16 +226,13 @@ function renderPlatforms() {
         if (p.isBroken) return;
         const div = document.createElement('div');
         div.className = 'platform';
-        div.style.left = p.x + 'px';
-        div.style.top = p.y + 'px';
-        div.style.width = p.w + 'px';
-        div.style.height = p.h + 'px';
+        div.style.left = p.x + 'px'; div.style.top = p.y + 'px';
+        div.style.width = p.w + 'px'; div.style.height = p.h + 'px';
         div.style.backgroundImage = `url('${p.img}')`;
-        if (p.isBlock && p.durability === 1) div.style.opacity = '0.7';
+        if (p.isWood && p.durability === 1) div.style.opacity = '0.6';
         stage.appendChild(div);
     });
 }
-
 update();
 </script>
 </body>
