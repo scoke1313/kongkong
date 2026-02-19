@@ -5,98 +5,98 @@
     <title>춘식 점프 물리 로직</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
-        body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        #game-stage { position: relative; width: 600px; height: 800px; background: #f7d300; border-radius: 20px; overflow: hidden; }
+        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        /* 요청하신 393x852 사이즈 고정 */
+        #game-stage { 
+            position: relative; 
+            width: 393px; 
+            height: 852px; 
+            background: #fff; 
+            overflow: hidden; 
+        }
+        /* 캐릭터 사이즈 86x138 고정 */
+        #canvas-container {
+            position: absolute;
+            width: 86px;
+            height: 138px;
+            bottom: 100px; /* 바닥에서 100px 위를 시작점으로 설정 */
+            left: 50%;
+            margin-left: -43px; /* 가로 중앙 정렬 */
+        }
         canvas { width: 100%; height: 100%; }
-        .debug-panel { position: absolute; top: 10px; left: 10px; color: #333; font-family: monospace; background: rgba(255,255,255,0.7); padding: 10px; border-radius: 5px; }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
-    <div class="debug-panel" id="debug">Speed: 0 | Jumping: false</div>
-    <canvas id="canvas"></canvas>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
 </div>
 
 <script>
-// --- 1. 점프 물리 상수 (이 수치로 체감 조절) ---
+// --- 물리 파라미터 (속도와 시간 중심) ---
 const PHYSICS = {
     gravity: 0.9,       // 중력 (클수록 빨리 떨어짐)
     jumpPower: -18,     // 도약 속도 (클수록 높이 뜀)
-    groundY: 550,       // 바닥 높이
-    airDrag: 0.98       // 정점 부근 저항 (체공 시간 결정)
+    groundY: 0,         // 바닥 기준
 };
 
-let chunsikY = PHYSICS.groundY;
+let currentY = 0;
 let velocityY = 0;
 let isJumping = false;
-let currentRive; // 현재 활성화된 Rive 객체
+let riveInstance;
 
-// --- 2. Rive 인스턴스 초기 로드 (Air 모션 우선) ---
-function loadChunsik(fileName) {
-    if (currentRive) currentRive.cleanup(); // 기존 인스턴스 제거
+// Rive 초기화 함수 (파일 교체용)
+function loadRive(fileName) {
+    if (riveInstance) riveInstance.cleanup();
     
-    currentRive = new rive.Rive({
-        src: fileName, // kongsik_ingame_air.riv 또는 land.riv
+    riveInstance = new rive.Rive({
+        src: fileName,
         canvas: document.getElementById('canvas'),
         autoplay: true,
         stateMachines: 'State Machine 1',
         onLoad: () => {
-            currentRive.resizeDrawingSurfaceToCanvas();
+            riveInstance.resizeDrawingSurfaceToCanvas();
         }
     });
 }
 
-// 초기 상태: 공중/대기 모션 로드
-loadChunsik('kongsik_ingame_air.riv');
+// 최초 실행: 공중(대기) 모션 로드
+loadRive('kongsik_ingame_air.riv');
 
-// --- 3. 핵심 업데이트 루프 ---
 function update() {
     if (isJumping) {
-        // 속도 계산
         velocityY += PHYSICS.gravity;
-        
-        // 정점에서 살짝 머무는 효과 (물리적 체공 시간)
-        if (Math.abs(velocityY) < 2) {
-            velocityY *= PHYSICS.airDrag;
-        }
+        currentY += velocityY;
 
-        chunsikY += velocityY;
-
-        // 착지 순간 판정
-        if (chunsikY >= PHYSICS.groundY) {
-            chunsikY = PHYSICS.groundY;
+        // 바닥 도착 판정
+        if (currentY >= PHYSICS.groundY) {
+            currentY = PHYSICS.groundY;
             velocityY = 0;
             isJumping = false;
             
-            // [착지] 모션으로 즉시 교체
-            loadChunsik('kongsik_ingame_land.riv');
-            console.log("착지 속도에 맞춰 Land 모션 실행");
+            // 착지 모션 파일로 교체
+            loadRive('kongsik_ingame_land.riv');
         }
+
+        // 캐릭터 위치(Y) 업데이트
+        document.getElementById('canvas-container').style.transform = `translateY(${currentY}px)`;
     }
-
-    // 디버그 표시 및 위치 업데이트
-    document.getElementById('debug').innerText = `VY: ${velocityY.toFixed(2)} | Y: ${Math.round(chunsikY)}`;
-    
-    // 캔버스 내 캐릭터 위치 직접 제어 (속도감 반영)
-    const canvasElement = document.getElementById('canvas');
-    canvasElement.style.transform = `translateY(${chunsikY - PHYSICS.groundY}px)`;
-
     requestAnimationFrame(update);
 }
 
-// --- 4. 입력 제어 ---
+// 입력 감지
 window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' && !isJumping) {
         isJumping = true;
         velocityY = PHYSICS.jumpPower;
         
-        // [점프] 모션으로 즉시 교체
-        loadChunsik('kongsik_ingame_air.riv');
+        // 점프 시작 시 공중 모션 파일로 교체
+        loadRive('kongsik_ingame_air.riv');
     }
 });
 
-// 게임 루프 시작
 update();
 </script>
 
