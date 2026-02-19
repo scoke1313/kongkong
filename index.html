@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - Rive 캐릭터 복구</title>
+  <title>콩콩춘식 - 캐릭터 복구 완료</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -12,10 +12,8 @@
     canvas{width:100%;height:100%;display:block}
     #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.6);color:#fff;text-align:center;padding:24px}
-    .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer;box-shadow:0 6px 0 #cdae04}
+    .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
     .hidden{display:none!important}
-    #touchL,#touchR{position:absolute;bottom:0;width:50%;height:100%;z-index:3}
-    #touchL{left:0} #touchR{right:0}
   </style>
 </head>
 <body>
@@ -23,12 +21,10 @@
   <div id="hud">금리: <span id="rate">2.0</span>%</div>
   <canvas id="cv"></canvas>
   <div id="start" class="overlay">
-    <h1 style="color:#FFEF6B; font-size:32px; text-shadow:2px 2px 0 #333;">콩콩춘식</h1>
-    <div id="loadMsg" style="color:#FFEF6B; font-weight:800; font-size:14px; margin-bottom:10px;">춘식이 불러오는 중...</div>
+    <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
+    <div id="loadMsg" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">춘식이 로딩 중...</div>
     <button class="btn hidden" id="btnStart">게임 시작</button>
   </div>
-  <div id="touchL"></div>
-  <div id="touchR"></div>
 </div>
 
 <script>
@@ -41,104 +37,74 @@
   function resize(){ canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
   window.addEventListener('resize', resize); resize();
 
-  // --- Rive 핵심 설정 ---
-  const RIVE_W = 86, RIVE_H = 112; // 캐릭터 사이즈
+  // --- Rive 가상 캔버스 (86x112) ---
+  const RIVE_W = 86, RIVE_H = 112;
   const riveCanvas = document.createElement('canvas');
   riveCanvas.width = RIVE_W; riveCanvas.height = RIVE_H;
   let kongsikLoaded = false;
+  let rInstance = null;
 
-  // Rive 인스턴스 직접 생성
-  const r = new rive.Rive({
-    src: 'kongsik_ingame.riv', // 파일 경로
-    canvas: riveCanvas,
-    artboard: 'Artboard', // 아트보드 이름
-    stateMachines: 'State Machine 1', // 스테이트 머신 이름
-    autoplay: true,
-    layout: new rive.Layout({ fit: rive.Fit.Contain, alignment: rive.Alignment.Center }),
-    onLoad: () => {
-      r.resizeDrawingSurfaceToCanvas();
-      kongsikLoaded = true;
-      loadMsg.innerText = "준비 완료! 🐯";
-      btnStart.classList.remove('hidden'); // 캐릭터 로드 전엔 시작 불가
-    },
-    onLoadError: () => {
-      loadMsg.innerText = "⚠️ 로드 실패 (파일 이름 확인 필요)";
-      loadMsg.style.color = "#ff4d4d";
+  // 춘식이 로딩 (데이터 직접 로드 방식)
+  async function init() {
+    try {
+      const resp = await fetch('kongsik_ingame.riv');
+      const buffer = await resp.arrayBuffer();
+      const file = await rive.load({ buffer: buffer });
+      
+      rInstance = new rive.Rive({
+        riveFile: file,
+        canvas: riveCanvas,
+        artboard: 'Artboard',
+        stateMachines: 'State Machine 1',
+        autoplay: true,
+        onLoad: () => {
+          rInstance.resizeDrawingSurfaceToCanvas();
+          kongsikLoaded = true;
+          loadMsg.innerText = "준비 완료! 🐯";
+          btnStart.classList.remove('hidden');
+        }
+      });
+    } catch (e) {
+      loadMsg.innerText = "❌ 로드 에러 (Live Server 실행 확인)";
     }
-  });
+  }
+  init();
 
-  // 게임 물리 로직 (image_0f1087.png 기반)
   let p = { x: 0, y: 0, vx: 0, vy: -12 };
   let platforms = [];
   let isRunning = false;
   let lastTime = 0;
-  let lastDir = 1; // 1: 왼쪽, -1: 오른쪽
-  const keys = { left: false, right: false };
-
-  // 조작 핸들러
-  window.addEventListener('keydown', e => {
-    if(e.code==='ArrowLeft') { keys.left=true; lastDir=1; }
-    if(e.code==='ArrowRight') { keys.right=true; lastDir=-1; }
-  });
-  window.addEventListener('keyup', e => {
-    if(e.code==='ArrowLeft') keys.left=false;
-    if(e.code==='ArrowRight') keys.right=false;
-  });
-
-  document.getElementById('touchL').ontouchstart = (e) => { e.preventDefault(); keys.left=true; lastDir=1; };
-  document.getElementById('touchL').ontouchend = () => keys.left=false;
-  document.getElementById('touchR').ontouchstart = (e) => { e.preventDefault(); keys.right=true; lastDir=-1; };
-  document.getElementById('touchR').ontouchend = () => keys.right=false;
 
   function reset() {
-    p.x = canvas.width / 2;
-    p.y = canvas.height - 200;
-    p.vx = 0; p.vy = -12;
+    p.x = canvas.width / 2; p.y = canvas.height - 200; p.vy = -12;
     platforms = [];
-    for(let i=0; i<8; i++) {
-      platforms.push({ x: Math.random()*(canvas.width-120), y: canvas.height-70-i*92 });
-    }
+    for(let i=0; i<8; i++) platforms.push({ x: Math.random()*(canvas.width-120), y: canvas.height-70-i*92 });
   }
 
   function loop(now) {
     if(!isRunning) return;
     let dt = (now - lastTime) / 1000;
     lastTime = now;
-    if(dt > 0.1) dt = 0.016;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    p.vy += 0.45; p.y += p.vy;
 
-    // 물리 업데이트
-    if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
-    p.x += p.vx; p.vy += 0.45; p.y += p.vy;
-
-    if(p.x < -30) p.x = canvas.width + 30;
-    if(p.x > canvas.width + 30) p.x = -30;
-
-    // 발판 그리기 (입체 디자인 반영)
+    // 발판 그리기 (디자인 반영)
+    ctx.fillStyle = "#9CCC65";
     platforms.forEach(pl => {
-      ctx.fillStyle = "rgba(0,0,0,0.1)"; ctx.fillRect(pl.x + 5, pl.y + 5, 120, 15); // 그림자
-      ctx.fillStyle = "#C98B4B"; ctx.fillRect(pl.x, pl.y, 120, 15); // 몸체
-      ctx.fillStyle = "#9CCC65"; ctx.fillRect(pl.x, pl.y, 120, 7); // 윗면
-      if(p.vy > 0 && p.x > pl.x-20 && p.x < pl.x+140 && p.y+35 >= pl.y && p.y+35 <= pl.y+20) {
-        p.vy = -12;
-      }
+      ctx.fillRect(pl.x, pl.y, 120, 15);
+      if(p.vy > 0 && p.x > pl.x-20 && p.x < pl.x+140 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) p.vy = -12;
     });
 
-    // 스크롤
     if(p.y < canvas.height / 2 && p.vy < 0) {
       let dy = -p.vy; p.y += dy;
-      platforms.forEach(pl => {
-        pl.y += dy;
-        if(pl.y > canvas.height) { pl.y -= 92*8; pl.x = Math.random() * (canvas.width - 120); }
-      });
+      platforms.forEach(pl => { pl.y += dy; if(pl.y > canvas.height) { pl.y -= 92*8; pl.x = Math.random()*(canvas.width-120); } });
     }
 
-    // --- 춘식이 렌더링 (Rive 가상 캔버스 복사) ---
+    // --- 춘식이 그리기 (절대 경로 보장) ---
     if(kongsikLoaded) {
       ctx.save();
       ctx.translate(p.x, p.y);
-      ctx.scale(lastDir, 1);
       ctx.drawImage(riveCanvas, -RIVE_W/2, -RIVE_H/2, RIVE_W, RIVE_H);
       ctx.restore();
     }
@@ -149,10 +115,7 @@
 
   btnStart.onclick = () => {
     document.getElementById('start').classList.add('hidden');
-    isRunning = true;
-    reset();
-    lastTime = performance.now();
-    requestAnimationFrame(loop);
+    isRunning = true; reset(); lastTime = performance.now(); loop(performance.now());
   };
 })();
 </script>
