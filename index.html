@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 최종 결과 화면 적용</title>
+    <title>콩콩춘식 - 결과 화면 상세 표기 보정</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -20,38 +20,39 @@
         .ingame-ui { display: none; }
         #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_ingame.png'); background-repeat: repeat-y; background-size: 100% auto; z-index: 1; }
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
+        #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
         #score-board { position: absolute; top: 75px; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; z-index: 1000; }
         .rate-capsule { position: absolute; top: 74px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .ui-icon { width: 25px; height: 25px; margin-right: 6px; object-fit: contain; transform: translateY(1px); }
-        #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
+        #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; transform: translate(0, -2px); }
 
-        /* --- ★ 결과 화면 (image_8b9641.png 기반) ★ --- */
+        /* --- 결과 화면 --- */
         #result-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-color: rgba(0, 0, 0, 0.4); z-index: 3000;
-            display: none; align-items: center; justify-content: center;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
         }
         .result-popup {
             width: 345px; background: white; border-radius: 40px;
-            padding: 40px 20px; box-sizing: border-box;
+            padding: 40px 20px 30px; box-sizing: border-box;
             display: flex; flex-direction: column; align-items: center; text-align: center;
         }
         .res-title { font-size: 18px; font-weight: 800; color: #2D1D1C; margin-bottom: 15px; }
         .res-final-rate { font-size: 64px; font-weight: 900; color: #E76A6A; margin-bottom: 25px; font-family: 'Arial', sans-serif; }
         
-        .res-detail-row { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; width: 100%; }
-        .res-detail-icon { width: 24px; height: 24px; margin-right: 10px; object-fit: contain; }
-        .res-detail-text { font-size: 18px; font-weight: 700; color: #2D1D1C; }
+        .res-detail-row { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 12px; width: 210px; }
+        .res-detail-icon { width: 24px; height: 24px; margin-right: 12px; object-fit: contain; }
+        .res-detail-text { font-size: 18px; font-weight: 700; color: #2D1D1C; white-space: nowrap; }
 
         .res-character { width: 140px; margin: 30px 0 20px; }
-        .res-comment { font-size: 16px; font-weight: 800; color: #2D1D1C; line-height: 1.4; margin-bottom: 5px; }
+        .res-comment { font-size: 16px; font-weight: 800; color: #2D1D1C; line-height: 1.4; }
 
-        .res-btn-group { display: flex; gap: 10px; width: 100%; margin-top: 30px; }
-        .res-btn { flex: 1; height: 65px; border-radius: 15px; border: none; font-size: 18px; font-weight: 800; cursor: pointer; }
+        .res-btn-group { display: flex; gap: 10px; width: 345px; margin-top: 20px; }
+        .res-btn { flex: 1; height: 65px; border-radius: 20px; border: none; font-size: 18px; font-weight: 800; cursor: pointer; }
         .btn-retry { background: #333; color: white; }
         .btn-saving { background: #E76A6A; color: white; }
 
-        /* 캐릭터/캔버스 */
+        /* 게임 요소 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
@@ -69,7 +70,6 @@
         <div id="main-rive-container"><canvas id="main-rive-canvas"></canvas></div>
         <img src="btn_start.png" id="btn-start" alt="시작하기" onclick="startGame()">
     </div>
-
     <div id="bg-layer" class="ingame-ui"></div>
     <div id="btn-close-wrap" class="ingame-ui" onclick="location.reload();"><img src="close.png" alt="close"></div>
     <div id="score-board" class="ingame-ui">0m</div>
@@ -77,7 +77,6 @@
         <img src="clover_s.png" class="ui-icon" alt="clover">
         <span id="rate-board">0.00%</span>
     </div>
-    
     <div id="canvas-container" class="ingame-ui"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default ingame-ui"></div>
     <div id="btn-right" class="controller ctrl-default ingame-ui"></div>
@@ -89,26 +88,24 @@
             
             <div class="res-detail-row">
                 <img src="pogo_s.png" class="res-detail-icon">
-                <div class="res-detail-text"><span id="res-dist">0</span>m 기본 <span id="res-dist-rate">0.00</span>%</div>
+                <div class="res-detail-text">기본 금리 <span id="res-dist-rate">0.00</span>%</div>
             </div>
             <div class="res-detail-row">
                 <img src="clover_s.png" class="res-detail-icon">
-                <div class="res-detail-text"><span id="res-clover">0</span>개 우대 <span id="res-clover-rate">0.0</span>%</div>
+                <div class="res-detail-text">클로버 획득 <span id="res-clover-rate">0.0</span>%</div>
             </div>
 
             <img src="result_tip.png" class="res-character">
             <div class="res-comment">꽤 괜찮은 금리네요!<br>이 금리로 적금을 만들까요?</div>
-
-            <div class="res-btn-group">
-                <button class="res-btn btn-retry" onclick="startGame()">다시하기</button>
-                <button class="res-btn btn-saving" onclick="location.reload()">적금 만들기</button>
-            </div>
+        </div>
+        <div class="res-btn-group">
+            <button class="res-btn btn-retry" onclick="startGame()">다시하기</button>
+            <button class="res-btn btn-saving" onclick="location.reload()">적금 만들기</button>
         </div>
     </div>
 </div>
 
 <script>
-// 물리 설정
 const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
 const SIZES = [138, 98, 58]; 
 let score = 0, cloverCount = 0, currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
@@ -127,9 +124,7 @@ function showResult() {
     const totalRate = (dRate + cRate).toFixed(2);
 
     document.getElementById('res-total-rate').innerText = totalRate + "%";
-    document.getElementById('res-dist').innerText = finalDist;
     document.getElementById('res-dist-rate').innerText = dRate.toFixed(2);
-    document.getElementById('res-clover').innerText = cloverCount;
     document.getElementById('res-clover-rate').innerText = cRate.toFixed(1);
 
     document.querySelectorAll('.ingame-ui').forEach(el => el.style.display = 'none');
