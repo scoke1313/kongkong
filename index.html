@@ -17,7 +17,7 @@
         }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
-        /* 쥐돌이 크기 1.2배 (72x54) */
+        /* 쥐돌이 크기 1.2배 확대 */
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
@@ -94,7 +94,7 @@ function createPlatformData(yPos) {
         isBreakable: isBreakable, durability: isBreakable ? 2 : 999,
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
-        mouseWaitTimer: 0, // 대기용 타이머 추가
+        mouseWaitTimer: 0,
         type: (rand > 0.9) ? 'h' : 'normal', speed: 1.5, isBroken: false
     };
 }
@@ -132,21 +132,19 @@ function update() {
         if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; }
         
         if (p.hasMouse) {
-            // 대기 타이머가 작동 중이면 이동하지 않음
+            // 대기 로직
             if (p.mouseWaitTimer > 0) {
                 p.mouseWaitTimer--;
             } else {
                 p.mouseX += p.mouseDir * p.mouseSpeed;
-                
-                // 끝점 도달 시 방향 전환 및 대기 시간 부여
                 if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) {
                     p.mouseDir *= -1;
-                    p.mouseWaitTimer = 60; // 약 1초 대기 (60프레임)
+                    p.mouseWaitTimer = 60; // 1초 대기
                 }
             }
             
             let mx = p.x + p.mouseX, my = p.y - 35;
-            // 아슬아슬한 판정 범위 적용
+            // 아슬아슬한 판정 범위 유지
             if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
                 velocityY = -10; 
                 posX += (posX > (mx - p.x) ? 40 : -40); 
@@ -189,9 +187,9 @@ function update() {
         if (p.hasMouse) {
             const m = document.createElement('div');
             m.className = 'mouse-enemy';
-            // 가만히 있을 때와 움직일 때의 이미지(mouse2.png 등)를 상황에 맞춰 사용 가능하도록 설계
-            // p.mouseWaitTimer > 0 일 때 가만히 있는 이미지(mouse2.png)를 쓰는 로직을 확장할 수 있음
-            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 52}px;background-image:url('mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png'); transform: scaleX(${p.mouseDir})`;
+            // ★ 가만히 있을 때(mouseWaitTimer > 0)는 mouse2.png 사용
+            const mouseImg = p.mouseWaitTimer > 0 ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
+            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y - 52}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
             stage.appendChild(m);
         }
     });
