@@ -2,21 +2,32 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 쥐돌이 발판 귀속 패치</title>
+    <title>콩콩춘식 - 쥐돌이 에너미 완벽 통합</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        
         #game-stage { 
             position: relative; width: 393px; height: 852px; 
             background: url('bg_ingame.png') repeat-y, #FFFDF5; 
             background-size: 100% auto; overflow: hidden; 
         }
+
+        /* 춘식이 전용 컨테이너: 절대 사이즈 고정으로 짜부 방지 */
         #canvas-container {
             position: absolute; width: 86px; height: 138px;
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
-        .platform, .enemy { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; z-index: 5; }
+        
+        .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; z-index: 5; }
+        
+        /* 쥐돌이 전용 스타일: 54x54 정사이즈 고정 */
+        .enemy { 
+            position: absolute; width: 54px; height: 54px; 
+            background-size: 100% 100%; background-repeat: no-repeat; z-index: 8; 
+        }
+        
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
             z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -25,6 +36,7 @@
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
+        
         #score-board {
             position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold;
             color: #5c3e34; z-index: 100; font-family: sans-serif;
@@ -48,24 +60,13 @@ const SIZES = [138, 98, 58];
 
 let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
 let riveInstance, keys = {}, currentScale = 1;
-let platforms = [], enemies = [], frameCount = 0;
+let platforms = [], enemies = [], frameCount = 0, lastLoadedFile = "";
 
 function createPlatformData(yPos) {
     const sizeIdx = Math.floor(Math.random() * SIZES.length);
     const width = SIZES[sizeIdx];
-    const isBreakable = Math.random() > 0.25;
+    const isBreakable = Math.random() > 0.3; // 나무 발판 확률
     const pX = Math.random() * (393 - width);
-
-    // ★ 쥐돌이 생성: 특정 발판 위에 귀속되도록 설정
-    if (Math.random() < 0.2 && width > 60) {
-        enemies.push({
-            parentPlatform: null, // 아래에서 참조 연결
-            x: pX + 10, y: yPos - 54, // 54x54 사이즈 반영
-            w: 54, h: 54, speed: 1.5, scaleX: 1, frame: 0,
-            relX: 10, // 발판 기준 상대 좌표
-            pWidth: width // 발판 너비 기억
-        });
-    }
 
     const p = {
         x: pX, y: yPos, w: width, h: 22,
@@ -75,10 +76,14 @@ function createPlatformData(yPos) {
         speed: 1.2, isBroken: false
     };
 
-    // 방금 만든 쥐돌이가 있다면 이 발판에 연결
-    const lastEnemy = enemies[enemies.length - 1];
-    if (lastEnemy && !lastEnemy.parentPlatform) lastEnemy.parentPlatform = p;
-
+    // 쥐돌이 생성: 54x54 정사이즈 및 발판 귀속
+    if (Math.random() < 0.25 && width > 60) {
+        enemies.push({
+            parent: p, relX: 10,
+            w: 54, h: 54, speed: 1.5, dir: 1, frame: 0,
+            isFalling: false, fallVel: 0, x: 0, y: 0
+        });
+    }
     return p;
 }
 
@@ -92,17 +97,17 @@ function init() {
     platforms.push({ x: 127, y: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, type: 'normal' });
 }
 
-// 입력 및 Rive 로직 (생략/유지)
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
-function setBtnState(btn, on) { btn.classList.toggle('ctrl-default', !on); btn.classList.toggle('ctrl-pressed', on); }
-const handleInput = (k, d, b) => { keys[k] = d; setBtnState(b, d); };
-btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowLeft', true, btnLeft); });
-btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnLeft); });
-btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnRight); });
-btnRight.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnRight); });
+// 입력 제어 로직
+const handleInput = (k, d, b) => { keys[k] = d; b.classList.toggle('ctrl-default', !d); b.classList.toggle('ctrl-pressed', d); };
+const btnL = document.getElementById('btn-left'), btnR = document.getElementById('btn-right');
+btnL.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowLeft', true, btnL); });
+btnL.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowLeft', false, btnL); });
+btnR.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput('ArrowRight', true, btnR); });
+btnR.addEventListener('touchend', (e) => { e.preventDefault(); handleInput('ArrowRight', false, btnR); });
 
 function loadRive(name) {
+    if (lastLoadedFile === name) return;
+    lastLoadedFile = name;
     if (riveInstance) riveInstance.cleanup();
     riveInstance = new rive.Rive({ src: name, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1' });
 }
@@ -118,35 +123,34 @@ function update() {
     currentY += velocityY;
     frameCount++;
 
-    // ★ 쥐돌이 로직: 발판 위에서만 이동
+    // 쥐돌이 로직: 발판 왕복 및 동반 추락
     enemies.forEach(e => {
-        if (e.parentPlatform.isBroken) { e.y += 10; return; } // 발판 부서지면 추락
-        
-        e.relX += (e.speed * e.scaleX);
-        // 발판 끝에 닿으면 턴
-        if (e.relX <= 0) { e.scaleX = 1; e.relX = 0; }
-        if (e.relX + e.w >= e.pWidth) { e.scaleX = -1; e.relX = e.pWidth - e.w; }
-        
-        e.x = e.parentPlatform.x + e.relX;
-        e.y = e.parentPlatform.y - 50; // 발판 바로 위 위치 고정
-
+        if (e.parent.isBroken || e.isFalling) {
+            e.isFalling = true;
+            e.fallVel += PHYSICS.gravity;
+            e.y += e.fallVel; // 발판과 함께 추락
+        } else {
+            e.relX += (e.speed * e.dir);
+            if (e.relX <= 0 || e.relX + e.w >= e.parent.w) e.dir *= -1;
+            e.x = e.parent.x + e.relX;
+            e.y = e.parent.y - 50; // 발판 위 위치 고정
+        }
         if (frameCount % 10 === 0) e.frame = (e.frame + 1) % 2;
 
-        // 충돌 체크 (정교화)
-        const charFootY = 752 + currentY;
-        const charCenter = 196 + posX;
-        if (Math.abs(charCenter - (e.x + e.w/2)) < 30 && Math.abs(charFootY - 40 - e.y) < 30) {
-            init(); currentY = 0; velocityY = PHYSICS.jumpPower; 
+        // 충돌 판정: 춘식이 86x138 영역 고려
+        const cX = 196 + posX, cY = 752 + currentY;
+        if (!e.isFalling && Math.abs(cX - (e.x + 27)) < 35 && Math.abs((cY - 60) - (e.y + 27)) < 35) {
+            init(); currentY = 0; velocityY = PHYSICS.jumpPower; loadRive('kongsik_ingame_air.riv');
         }
     });
 
-    platforms.forEach(p => { if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } });
-
-    const charFootY = 752 + currentY;
-    const charCenter = 196 + posX;
+    // 발판 로직
+    platforms.forEach(p => { if (p.type === 'h' && !p.isBroken) { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } });
+    
+    const cFootY = 752 + currentY, cX = 196 + posX;
     if (velocityY > 0) {
         platforms.forEach(p => {
-            if (!p.isBroken && Math.abs(charCenter - (p.x + p.w/2)) < p.w/2 + 20 && charFootY >= p.y && charFootY <= p.y + 15) {
+            if (!p.isBroken && Math.abs(cX - (p.x + p.w/2)) < p.w/2 + 20 && cFootY >= p.y && cFootY <= p.y + 15) {
                 loadRive('kongsik_ingame_land.riv');
                 velocityY = PHYSICS.jumpPower; currentY = p.y - 752;
                 if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; }
@@ -154,6 +158,7 @@ function update() {
         });
     }
 
+    // 스크롤 및 무한 생성
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250; score += Math.floor(diff);
@@ -163,11 +168,10 @@ function update() {
             p.y += diff;
             if (p.y > 852) Object.assign(p, createPlatformData(Math.min(...platforms.map(pl=>pl.y)) - 170));
         });
-        enemies.forEach(e => { if (e.parentPlatform.isBroken) e.y += diff; });
+        enemies.forEach(e => { if (e.isFalling) e.y += diff; });
         enemies = enemies.filter(e => e.y < 900);
     }
-
-    if (charFootY > 950) init();
+    if (cFootY > 950) init();
 
     // 렌더링
     const stage = document.getElementById('game-stage');
@@ -175,25 +179,19 @@ function update() {
     
     platforms.forEach(p => {
         if (p.isBroken) return;
-        const div = document.createElement('div');
-        div.className = 'platform';
-        div.style.left = Math.floor(p.x) + 'px'; div.style.top = Math.floor(p.y) + 'px';
-        div.style.width = p.w + 'px'; div.style.height = p.h + 'px';
-        div.style.backgroundImage = `url('${p.img}')`;
-        stage.appendChild(div);
+        const d = document.createElement('div'); d.className = 'platform';
+        d.style.left = p.x+'px'; d.style.top = p.y+'px'; d.style.width = p.w+'px'; d.style.height = p.h+'px';
+        d.style.backgroundImage = `url('${p.img}')`; stage.appendChild(d);
     });
 
     enemies.forEach(e => {
-        const div = document.createElement('div');
-        div.className = 'enemy';
-        div.style.left = Math.floor(e.x) + 'px'; div.style.top = Math.floor(e.y) + 'px';
-        div.style.width = '54px'; div.style.height = '54px'; // 정사이즈
-        div.style.backgroundImage = `url('${ENEMY_IMGS[e.frame]}')`;
-        div.style.transform = `scaleX(${e.scaleX})`;
-        stage.appendChild(div);
+        const d = document.createElement('div'); d.className = 'enemy';
+        d.style.left = e.x+'px'; d.style.top = e.y+'px';
+        d.style.backgroundImage = `url('${ENEMY_IMGS[e.frame]}')`;
+        d.style.transform = `scaleX(${e.dir})`; stage.appendChild(d);
     });
 
-    document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
+    document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
     document.getElementById('score-board').innerText = score + "m";
     requestAnimationFrame(update);
 }
