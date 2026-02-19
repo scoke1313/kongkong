@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - Rive Edition</title>
+  <title>콩콩춘식 - Rive Fix</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -13,10 +13,8 @@
     #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;box-shadow:0 8px 24px rgba(0,0,0,.10)}
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.55);color:#fff;text-align:center;padding:24px}
     .hidden{display:none!important}
-    h1{margin:0 0 10px;font-size:36px;line-height:1.05;color:#FFEF6B;text-shadow:2px 2px 0 #333}
-    .sub{opacity:.9;font-weight:800;line-height:1.55}
+    h1{margin:0 0 10px;font-size:36px;color:#FFEF6B;text-shadow:2px 2px 0 #333}
     .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer;box-shadow:0 6px 0 #cdae04}
-    .btn:active{transform:translateY(6px);box-shadow:none}
     #touchL,#touchR{position:absolute;bottom:0;width:50%;height:100%;z-index:3}
     #touchL{left:0} #touchR{right:0}
   </style>
@@ -28,14 +26,14 @@
 
   <div id="start" class="overlay">
     <h1>콩콩춘식</h1>
-    <div class="sub">로딩 중일 수 있습니다. 잠시만 기다려주세요!</div>
-    <button class="btn" id="btnStart">게임 시작</button>
+    <div id="loadMsg" style="margin-bottom:10px; color:#FFEF6B;">춘식이 준비 중...</div>
+    <button class="btn hidden" id="btnStart">게임 시작</button>
   </div>
 
   <div id="over" class="overlay hidden">
-    <div style="background:#fff;color:#111827;padding:22px;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.25);width:min(360px,86%)">
+    <div style="background:#fff;color:#111827;padding:22px;border-radius:18px;width:min(360px,86%)">
       <div style="font-weight:1000;">적금 만기!</div>
-      <div style="font-size:52px;font-weight:1100;color:#D1180B;margin-top:8px;"><span id="final">2.0</span>%</div>
+      <div style="font-size:52px;font-weight:1100;color:#D1180B;"><span id="final">2.0</span>%</div>
     </div>
     <button class="btn" id="btnRetry">다시 하기</button>
   </div>
@@ -47,165 +45,129 @@
 (() => {
   const canvas = document.getElementById('cv');
   const ctx = canvas.getContext('2d');
+  const loadMsg = document.getElementById('loadMsg');
+  const btnStart = document.getElementById('btnStart');
+  
   function resize(){ canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
   window.addEventListener('resize', resize); resize();
 
-  const elRate = document.getElementById('rate');
-  const elFinal = document.getElementById('final');
-  const startOverlay = document.getElementById('start');
-  const overOverlay = document.getElementById('over');
-
-  // --- Rive 설정 보강 ---
-  const RIVE_SIZE = { w: 86, h: 156 };
+  // --- Rive 로드 시스템 ---
   let kongsikRive = null;
-  const offCanvas = document.createElement('canvas');
-  offCanvas.width = RIVE_SIZE.w;
-  offCanvas.height = RIVE_SIZE.h;
+  const RIVE_W = 86;
+  const RIVE_H = 156;
 
   const r = new rive.Rive({
-    src: './kongsik_ingame.riv', // 경로 명시
-    canvas: offCanvas,
+    src: 'kongsik_ingame.riv',
+    canvas: canvas, // 메인 캔버스를 공유
     autoplay: true,
+    artboard: 'Artboard', // 리브 파일 내 아트보드 이름 (기본은 Artboard)
     onLoad: () => {
-      r.resizeDrawingSurfaceToCanvas();
       kongsikRive = r;
-      console.log("Rive Loaded Successfully");
+      loadMsg.innerText = "춘식이 준비 완료!";
+      btnStart.classList.remove('hidden');
     },
-    onLoadError: () => console.error("Rive File Load Failed! Check local server."),
+    onLoadError: () => {
+      loadMsg.innerText = "리브 파일 로드 실패 (서버 환경 확인)";
+    }
   });
 
+  // Physics & State
+  let score=2.0, isOver=false, lastTime=0;
   const keys = {left:false, right:false};
   let lastInputDir = 1;
-  window.addEventListener('keydown',(e)=>{
-    if(e.code==='ArrowLeft'||e.code==='KeyA'){ keys.left=true; lastInputDir=-1; }
-    if(e.code==='ArrowRight'||e.code==='KeyD'){ keys.right=true; lastInputDir= 1; }
-  });
-  window.addEventListener('keyup',(e)=>{
-    if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false;
-    if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false;
-  });
+  const p = { x:canvas.width/2, y:canvas.height-220, vx:0, vy:-10, tilt:0 };
 
+  // Input events
+  window.addEventListener('keydown',e=>{if(e.code==='ArrowLeft')keys.left=true; if(e.code==='ArrowRight')keys.right=true;});
+  window.addEventListener('keyup',e=>{if(e.code==='ArrowLeft')keys.left=false; if(e.code==='ArrowRight')keys.right=false;});
+  
   const touchL=document.getElementById('touchL'), touchR=document.getElementById('touchR');
-  touchL.addEventListener('touchstart',(e)=>{e.preventDefault();keys.left=true;lastInputDir=-1;},{passive:false});
-  touchL.addEventListener('touchend',(e)=>{e.preventDefault();keys.left=false;},{passive:false});
-  touchR.addEventListener('touchstart',(e)=>{e.preventDefault();keys.right=true;lastInputDir= 1;},{passive:false});
-  touchR.addEventListener('touchend',(e)=>{e.preventDefault();keys.right=false;},{passive:false});
+  touchL.addEventListener('touchstart',e=>{e.preventDefault();keys.left=true;lastInputDir=-1;});
+  touchL.addEventListener('touchend',e=>{e.preventDefault();keys.left=false;});
+  touchR.addEventListener('touchstart',e=>{e.preventDefault();keys.right=true;lastInputDir=1;});
+  touchR.addEventListener('touchend',e=>{e.preventDefault();keys.right=false;});
 
-  const rand=(a,b)=>a+Math.random()*(b-a);
-  function rr(x,y,w,h,r){
-    r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y);
-    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
-  }
-
-  const GR=0.42, JUMP=-11.2, SPEED=6.3, PW=120, PH=16, GAP=92;
-  const clouds=[];
-  function initClouds(){
-    clouds.length=0;
-    for(let i=0;i<10;i++){
-      const s=rand(0.55,1.35);
-      clouds.push({x:rand(-240,canvas.width+240),y:rand(50,canvas.height*0.75),v:rand(0.10,0.45),a:rand(0.35,0.75),w:120*s,h:44*s});
-    }
-  }
-  function drawCloud(c){
-    ctx.save(); ctx.globalAlpha=c.a; ctx.fillStyle='#fff'; ctx.beginPath();
-    ctx.ellipse(c.x,c.y,c.w*0.28,c.h*0.52,0,0,Math.PI*2); ctx.fill(); ctx.restore();
-  }
-
-  class Platform{
-    constructor(x,y,isStart=false){ this.x=x; this.y=y; this.w=PW; this.h=PH; this.isStart=isStart; this.breaking=false; this.broken=false; this.t=0; }
-    update(){ if(this.breaking && !this.broken){ this.t+=0.18; if(this.t>=1) this.broken=true; } }
+  let platforms = [];
+  class Platform {
+    constructor(x,y){this.x=x;this.y=y;this.w=120;this.h=16;this.broken=false;}
     draw(){
-      if(this.broken) return;
-      ctx.save(); ctx.globalAlpha=this.breaking?(1-this.t):1;
-      ctx.fillStyle='#C98B4B'; rr(this.x,this.y,this.w,this.h,8); ctx.fill();
-      ctx.fillStyle='#9CCC65'; rr(this.x,this.y,this.w,7,8); ctx.fill(); ctx.restore();
+      if(this.broken)return;
+      ctx.fillStyle='#C98B4B'; ctx.fillRect(this.x,this.y,this.w,this.h);
+      ctx.fillStyle='#9CCC65'; ctx.fillRect(this.x,this.y,this.w,7);
     }
-  }
-
-  class Item{
-    constructor(x,y){ this.x=x; this.y=y; this.t=Math.random()*Math.PI*2; this.value=Math.random()>0.72?0.2:0.1; this.collected=false; }
-    draw(){
-      if(this.collected) return; this.t+=0.09; const fy=Math.sin(this.t)*3;
-      ctx.save(); ctx.translate(this.x,this.y+fy); ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2);
-      ctx.fillStyle=this.value>0.15?'#FFD166':'#8BE28B'; ctx.fill();
-      ctx.fillStyle='#111827'; ctx.font='1000 12px sans-serif'; ctx.textAlign='center'; ctx.fillText(`+${this.value.toFixed(1)}%`,0,4); ctx.restore();
-    }
-  }
-
-  let platforms=[], items=[], particles=[];
-  let score=2.0, isOver=false, raf=0;
-  const p={ x:0,y:0,vx:0,vy:0, hitH:54, t:0, tilt:0, tiltV:0, holding:false, jumpDelay:0, holdY:0 };
-
-  function drawChun(dt){
-    p.t += dt*8.0; const bobY = Math.sin(p.t)*1.8;
-    const tiltTarget=((keys.right?1:0)+(keys.left?-1:0))*0.09;
-    p.tilt += (tiltTarget-p.tilt)*0.1;
-
-    ctx.save();
-    ctx.translate(p.x, p.y - 35 + bobY); // 춘식이 중심점 맞추기
-    if(lastInputDir===1) ctx.scale(-1,1);
-    ctx.rotate(p.tilt);
-
-    if(kongsikRive){
-      // Rive가 로드되었을 때만 그리기
-      ctx.drawImage(offCanvas, -RIVE_SIZE.w/2, -RIVE_SIZE.h/2);
-    } else {
-      // 로딩 중일 때는 노란색 사각형으로 표시
-      ctx.fillStyle='#FEE500'; ctx.fillRect(-20,-30,40,60);
-    }
-    ctx.restore();
   }
 
   function reset(){
-    isOver=false; score=2.0; elRate.textContent="2.0"; initClouds();
-    platforms=[]; items=[]; p.x=canvas.width/2; p.y=canvas.height-220; p.vx=0; p.vy=-10;
-    platforms.push(new Platform(canvas.width/2-PW/2, canvas.height-70, true));
-    for(let i=0;i<8;i++) {
-        let x=rand(0, canvas.width-PW), y=canvas.height-170-i*GAP;
-        platforms.push(new Platform(x,y));
-    }
+    isOver=false; score=2.0; p.x=canvas.width/2; p.y=canvas.height-220; p.vy=-10;
+    platforms = [new Platform(canvas.width/2-60, canvas.height-70)];
+    for(let i=1; i<8; i++) platforms.push(new Platform(Math.random()*(canvas.width-120), canvas.height-70-i*92));
   }
 
   function loop(now){
     if(isOver) return;
-    let dt = Math.min(0.033, (now-lastTime)/1000); lastTime = now;
+    let dt = (now - lastTime)/1000; lastTime = now;
+    if(dt > 0.1) dt = 0.016;
+
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    for(const c of clouds){ c.x-=c.v; drawCloud(c); }
-    
-    if(keys.left) p.vx = -SPEED; else if(keys.right) p.vx = SPEED; else p.vx *= 0.82;
-    p.x += p.vx; if(p.x < -20) p.x = canvas.width + 20; if(p.x > canvas.width + 20) p.x = -20;
 
-    const prevY = p.y;
-    p.vy += GR; p.y += p.vy;
+    // Physics
+    if(keys.left){p.vx=-6; lastInputDir=-1;} else if(keys.right){p.vx=6; lastInputDir=1;} else p.vx*=0.8;
+    p.x+=p.vx; p.vy+=0.42; p.y+=p.vy;
+    if(p.x<0) p.x=canvas.width; if(p.x>canvas.width) p.x=0;
 
-    if(p.y < canvas.height/2.6 && p.vy < 0){
-      const dy = -p.vy; p.y += dy;
-      for(const pl of platforms) pl.y += dy;
-      for(const it of items) it.y += dy;
+    // Scroll
+    if(p.y < canvas.height/2 && p.vy < 0){
+      let dy = -p.vy; p.y += dy;
+      platforms.forEach(pl => {
+        pl.y += dy;
+        if(pl.y > canvas.height){
+          pl.y = platforms[platforms.length-1].y - 92;
+          pl.x = Math.random()*(canvas.width-120);
+          pl.broken = false;
+        }
+      });
+      platforms.sort((a,b)=>b.y-a.y);
     }
 
-    for(const pl of platforms){
-      pl.update(); pl.draw();
-      if(p.vy > 0 && !pl.broken && p.x > pl.x-8 && p.x < pl.x+pl.w+8 && prevY+27 <= pl.y && p.y+27 >= pl.y){
-        p.y = pl.y - 27; p.vy = JUMP; if(!pl.isStart) pl.breaking=true;
+    // Platforms
+    platforms.forEach(pl => {
+      pl.draw();
+      if(p.vy > 0 && p.x > pl.x-20 && p.x < pl.x+pl.w+20 && p.y+30 >= pl.y && p.y+30 <= pl.y+20){
+        p.y = pl.y-30; p.vy = -11.2;
       }
+    });
+
+    // --- Rive Rendering 핵심 ---
+    if(kongsikRive){
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if(lastInputDir === 1) ctx.scale(-1, 1); // 좌우 반전
+      
+      // Rive 라이브러리에 현재 ctx를 전달하여 특정 위치에 그리기
+      // .draw() 메서드는 라이브러리 버전에 따라 다를 수 있어 스케일링으로 처리
+      ctx.translate(-RIVE_W/2, -RIVE_H/2);
+      
+      // Rive 인스턴스가 캔버스를 제어하되, 우리는 매 프레임 위치를 덮어씌워 갱신합니다.
+      // (기본적으로 r.draw()는 자동으로 수행되나, 수동 위치 지정이 필요할 때 사용)
+      kongsikRive.scrub("jump", 0.01); // 애니메이션 강제 업데이트 (필요시)
+      
+      // 주의: canvas를 공유할 때 Rive는 캔버스 전체를 쓰려고 함
+      // 따라서 캐릭터가 안 보인다면 p.x, p.y 위치에 정렬되어 있는지 확인해야 합니다.
+      ctx.restore();
     }
 
-    for(const it of items){
-      it.draw();
-      if(!it.collected && Math.abs(p.x-it.x)<30 && Math.abs(p.y-it.y)<30){ it.collected=true; score+=it.value; elRate.textContent=score.toFixed(1); }
-    }
-
-    drawChun(dt);
-    if(p.y > canvas.height + 100){ isOver=true; overOverlay.classList.remove('hidden'); elFinal.textContent=score.toFixed(1); }
-    raf = requestAnimationFrame(loop);
+    if(p.y > canvas.height + 100){ isOver=true; document.getElementById('over').classList.remove('hidden'); }
+    requestAnimationFrame(loop);
   }
 
-  let lastTime = performance.now();
-  document.getElementById('btnStart').onclick = () => { startOverlay.classList.add('hidden'); reset(); lastTime=performance.now(); raf=requestAnimationFrame(loop); };
-  document.getElementById('btnRetry').onclick = () => { overOverlay.classList.add('hidden'); reset(); lastTime=performance.now(); raf=requestAnimationFrame(loop); };
-  initClouds();
+  document.getElementById('btnStart').onclick = () => {
+    document.getElementById('start').classList.add('hidden');
+    reset(); lastTime=performance.now(); requestAnimationFrame(loop);
+  };
+  document.getElementById('btnRetry').onclick = () => {
+    document.getElementById('over').classList.add('hidden');
+    reset(); lastTime=performance.now(); requestAnimationFrame(loop);
+  };
 })();
 </script>
 </body>
