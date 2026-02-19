@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 정밀 규격 패치</title>
+    <title>콩콩춘식 - 밸런스 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -23,21 +23,12 @@
             z-index: 10;
         }
         canvas { width: 100%; height: 100%; }
-        
-        .platform {
-            position: absolute;
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            transition: opacity 0.2s;
-        }
+        .platform { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
     </style>
 </head>
 <body>
-
 <div id="game-stage">
-    <div id="canvas-container">
-        <canvas id="canvas"></canvas>
-    </div>
+    <div id="canvas-container"><canvas id="canvas"></canvas></div>
 </div>
 
 <script>
@@ -48,16 +39,17 @@ const PHYSICS = {
     stageWidth: 393,
     stageHeight: 852,
     motionHold: 12,
-    baseGap: 160 
+    // ★ 점프 가능 높이(약 220px)를 고려하여 간격을 150~190px 사이로 조절 ★
+    minGap: 150,
+    maxGap: 190 
 };
 
-// 발판 설정 (사용자 지정 규격 적용)
 const PLATFORM_TYPES = {
     wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'],
     block: ['block_1.png', 'block_2.png', 'block_3.png']
 };
-const SIZES = [138, 98, 58]; // 너비 수정
-const PLATFORM_H = 22;       // 높이 수정
+const SIZES = [138, 98, 58];
+const PLATFORM_H = 22;
 
 let currentY = 0, velocityY = 0, posX = 0;
 let riveInstance, keys = {}, currentScale = 1;
@@ -81,11 +73,9 @@ function createPlatformData(yPos) {
     const width = SIZES[sizeIdx];
     const rand = Math.random();
     
-    // 30% 확률로 벽돌 발판
-    const isBlock = rand < 0.3;
+    const isBlock = rand < 0.25; // 벽돌 확률 약간 조정
     const typeKey = isBlock ? 'block' : 'wood';
-    
-    let moveType = (rand > 0.85) ? 'h' : (rand > 0.75 ? 'v' : 'normal');
+    let moveType = (rand > 0.9) ? 'h' : (rand > 0.8 ? 'v' : 'normal');
 
     return {
         x: Math.random() * (PHYSICS.stageWidth - width),
@@ -96,8 +86,8 @@ function createPlatformData(yPos) {
         isBlock: isBlock,
         durability: isBlock ? 2 : 999,
         type: moveType,
-        speed: (Math.random() * 2 + 1) * (Math.random() > 0.5 ? 1 : -1),
-        offset: 0,
+        speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
+        offset: Math.random() * Math.PI * 2,
         initialY: yPos,
         isBroken: false
     };
@@ -105,21 +95,15 @@ function createPlatformData(yPos) {
 
 function initPlatforms() {
     platforms = [];
+    let lastY = 752;
     for (let i = 0; i < 5; i++) {
-        const randomY = i * (PHYSICS.baseGap + (Math.random() * 40 - 20));
-        platforms.push(createPlatformData(randomY + 50));
+        // ★ 이전 발판의 위치를 기준으로 점프 가능한 랜덤 간격 설정 ★
+        const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+        lastY -= nextGap;
+        platforms.push(createPlatformData(lastY));
     }
-    // 시작 발판 (138x22 규격 고정)
-    platforms.push({ 
-        x: PHYSICS.stageWidth/2 - 69, 
-        y: 752, 
-        w: 138, 
-        h: PLATFORM_H, 
-        img: 'wood_1.png', 
-        isBlock: false, 
-        durability: 999, 
-        type: 'normal' 
-    }); 
+    // 시작 발판
+    platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'wood_1.png', isBlock: false, durability: 999, type: 'normal' }); 
 }
 
 loadRive('kongsik_ingame_air.riv');
@@ -142,8 +126,9 @@ function update() {
             p.x += p.speed;
             if (p.x <= 0 || p.x + p.w >= PHYSICS.stageWidth) p.speed *= -1;
         } else if (p.type === 'v') {
-            p.offset += 0.05;
-            p.y = p.initialY + Math.sin(p.offset) * 30;
+            p.offset += 0.04;
+            // 상하 이동폭을 점프에 방해되지 않는 선(±25px)으로 제한
+            p.y = p.initialY + Math.sin(p.offset) * 25;
         }
     });
 
@@ -159,15 +144,12 @@ function update() {
 
     if (velocityY > 0) { 
         platforms.forEach(p => {
-            // 높이 22px에 최적화된 충돌 판정 (상단 10px 범위 내 착지)
             if (!p.isBroken && charLeft + 50 > p.x && charLeft < p.x + p.w &&
-                charFootY >= p.y && charFootY <= p.y + 12) {
-                
+                charFootY >= p.y && charFootY <= p.y + 15) {
                 loadRive('kongsik_ingame_land.riv');
                 velocityY = PHYSICS.jumpPower; 
                 currentY = p.y - 752; 
                 motionTimer = PHYSICS.motionHold; 
-
                 p.durability--;
                 if (p.durability <= 0) p.isBroken = true;
             }
@@ -181,8 +163,10 @@ function update() {
             p.y += diff;
             if (p.initialY !== undefined) p.initialY += diff;
             if (p.y > PHYSICS.stageHeight) {
+                // ★ 재생성 시에도 가장 높은 발판을 기준으로 안전 거리 내에 생성 ★
                 const highestY = Math.min(...platforms.map(plat => plat.y));
-                const newData = createPlatformData(highestY - PHYSICS.baseGap);
+                const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
+                const newData = createPlatformData(highestY - nextGap);
                 Object.assign(p, newData);
                 p.isBroken = false; 
             }
@@ -206,7 +190,6 @@ function renderPlatforms() {
     const stage = document.getElementById('game-stage');
     const existing = document.querySelectorAll('.platform');
     existing.forEach(el => el.remove());
-    
     platforms.forEach(p => {
         if (p.isBroken) return;
         const div = document.createElement('div');
@@ -216,18 +199,14 @@ function renderPlatforms() {
         div.style.width = p.w + 'px';
         div.style.height = p.h + 'px';
         div.style.backgroundImage = `url('${p.img}')`;
-        
         if (p.isBlock && p.durability === 1) div.style.opacity = '0.7';
-        
         stage.appendChild(div);
     });
 }
 
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
 update();
 </script>
-
 </body>
 </html>
