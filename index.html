@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 발판 속성 최종 교정</title>
+    <title>콩콩춘식 - 최종 배경 및 속성 통합 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -10,6 +10,7 @@
             position: relative; 
             width: 393px; 
             height: 852px; 
+            /* 최하단 종이 질감 배경 타일식 적용 */
             background-image: url('bg_ingame.jpg');
             background-repeat: repeat-y;
             background-size: 100% auto;
@@ -36,11 +37,16 @@
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
+        #score-board {
+            position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold;
+            color: #5c3e34; z-index: 100; font-family: sans-serif;
+        }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
+    <div id="score-board">0m</div>
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
@@ -60,12 +66,13 @@ const PLATFORM_TYPES = {
 const SIZES = [138, 98, 58];
 const PLATFORM_H = 22;
 
-let currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
+let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], motionTimer = 0, lastLoadedFile = "";
 
 const btnLeft = document.getElementById('btn-left');
 const btnRight = document.getElementById('btn-right');
+const scoreEl = document.getElementById('score-board');
 
 function setBtnState(btn, isPressed) {
     btn.classList.toggle('ctrl-default', !isPressed);
@@ -103,7 +110,7 @@ function createPlatformData(yPos) {
     const width = SIZES[sizeIdx];
     const rand = Math.random();
     
-    // ★ 교정: 이제 wood(나무)가 부서지는 발판(isBreakable)입니다.
+    // 나무(wood) = 부서짐, 벽돌(block) = 무적
     const isBreakable = rand > 0.25; 
     const typeKey = isBreakable ? 'wood' : 'block';
     let moveType = (rand > 0.9) ? 'h' : (rand > 0.85 ? 'v' : 'normal');
@@ -113,7 +120,7 @@ function createPlatformData(yPos) {
         y: yPos, w: width, h: PLATFORM_H,
         img: PLATFORM_TYPES[typeKey][sizeIdx],
         isBreakable: isBreakable,
-        durability: isBreakable ? 2 : 999, // 나무(wood)가 2번 밟으면 아웃
+        durability: isBreakable ? 2 : 999,
         type: moveType,
         speed: (Math.random() * 1.5 + 1) * (Math.random() > 0.5 ? 1 : -1),
         offset: Math.random() * Math.PI * 2,
@@ -123,15 +130,16 @@ function createPlatformData(yPos) {
 }
 
 function initPlatforms() {
-    platforms = [];
+    score = 0; scoreEl.innerText = "0m";
     bgScrollY = 0;
+    platforms = [];
     let lastY = 752;
     for (let i = 0; i < 5; i++) {
         const nextGap = PHYSICS.minGap + Math.random() * (PHYSICS.maxGap - PHYSICS.minGap);
         lastY -= nextGap;
         platforms.push(createPlatformData(lastY));
     }
-    // 시작 발판은 벽돌(block)로 설정하여 무적 상태로 시작
+    // 시작 발판은 벽돌(block)로 설정하여 무적 상태 유지
     platforms.push({ x: PHYSICS.stageWidth/2 - 69, y: 752, w: 138, h: PLATFORM_H, img: 'block_1.png', isBreakable: false, durability: 999, type: 'normal' }); 
 }
 
@@ -186,9 +194,14 @@ function update() {
         });
     }
 
+    // 화면 스크롤 및 배경 동기화
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250;
+        score += Math.floor(diff);
+        scoreEl.innerText = score + "m";
+        
+        // 배경 타일 이동
         bgScrollY += diff;
         document.getElementById('game-stage').style.backgroundPositionY = Math.floor(bgScrollY) + 'px';
 
@@ -227,7 +240,7 @@ function renderPlatforms() {
         div.style.top = Math.floor(p.y) + 'px';
         div.style.width = p.w + 'px'; div.style.height = p.h + 'px';
         div.style.backgroundImage = `url('${p.img}')`;
-        // 나무 발판이 1번 남았을 때 투명도 0.7 적용
+        // 나무 발판 내구도 힌트
         if (p.isBreakable && p.durability === 1) div.style.opacity = '0.7';
         stage.appendChild(div);
     });
