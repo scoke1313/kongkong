@@ -2,14 +2,13 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - UI 최적화 완료</title>
+    <title>콩콩춘식 - 최종 통합본</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        
         #game-stage { 
             position: relative; width: 393px; height: 852px; 
             background-color: #FFFDF5; 
@@ -18,7 +17,7 @@
             overflow: hidden; 
         }
 
-        /* --- 메인 화면 레이어 --- */
+        /* 메인 화면 */
         #main-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background-image: url('bg_main.png'); background-size: 100% 100%;
@@ -26,21 +25,15 @@
         }
         #main-rive-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         #main-canvas { width: 100%; height: 100%; }
-        
-        /* 버튼이 뚱뚱해지지 않도록 가로 비율을 90%로 조정하고 높이를 자동으로 맞춤 */
         #start-button {
             position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-            width: 340px; 
-            height: 75px; /* 원본 버튼 이미지 비율에 맞춘 높이 조정 */
-            background-image: url('btn_start.png'); 
-            background-size: contain; /* 이미지 비율 유지 */
-            background-repeat: no-repeat;
-            background-position: center;
-            cursor: pointer; border: none; background-color: transparent;
-            z-index: 2001;
+            width: 340px; height: 75px;
+            background-image: url('btn_start.png'); background-size: contain; 
+            background-repeat: no-repeat; background-position: center;
+            cursor: pointer; border: none; background-color: transparent; z-index: 2001;
         }
 
-        /* --- 인게임 UI 및 캐릭터 (생략 없이 통합) --- */
+        /* 인게임 UI */
         #ingame-ui { display: none; }
         #btn-close-wrap { position: absolute; top: 16px; left: 4px; width: 44px; height: 44px; z-index: 1001; cursor: pointer; }
         #btn-close-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -57,6 +50,7 @@
         }
         #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
 
+        /* 캐릭터 및 캔버스 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; display: none; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
@@ -64,6 +58,7 @@
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         .wood-chunk { position: absolute; background-color: #A1887F; z-index: 4; pointer-events: none; border-radius: 1px; }
 
+        /* 컨트롤러 */
         .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; display: none; }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
@@ -83,7 +78,7 @@
         <div id="btn-close-wrap" onclick="location.reload();"><img src="close.png" alt="close"></div>
         <div class="header-ui-container">
             <div id="score-board">0m</div>
-            <div class="rate-capsule"><img src="clover_s.png" class="ui-icon" alt="clover"><span id="rate-board">0.00%</span></div>
+            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0.00%</span></div>
         </div>
     </div>
     
@@ -93,91 +88,101 @@
 </div>
 
 <script>
-// --- 메인 애니메이션 설정 ---
+// --- 초기화 및 상태 ---
+let isPlaying = false;
+let riveInstance, keys = {}; // 키보드 상태 저장 객체 
+
+// 메인 리브 로드
 const mainRive = new rive.Rive({
     src: 'kongsik.riv',
     canvas: document.getElementById('main-canvas'),
     autoplay: true,
     stateMachines: 'State Machine 1',
-    onLoad: () => { mainRive.resizeDrawingSurfaceToCanvas(); }
+    onLoad: () => mainRive.resizeDrawingSurfaceToCanvas()
 });
+
+// --- 입력 시스템 (이게 가장 중요!) ---
+const setInput = (key, isDown, btn) => { 
+    keys[key] = isDown; 
+    if(btn) btn.classList.toggle('ctrl-pressed', isDown); 
+};
+
+// 키보드 리스너 
+window.addEventListener('keydown', (e) => { 
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, document.getElementById('btn-left')); 
+    if (e.code === 'ArrowRight') setInput('ArrowRight', true, document.getElementById('btn-right')); 
+});
+window.addEventListener('keyup', (e) => { 
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, document.getElementById('btn-left')); 
+    if (e.code === 'ArrowRight') setInput('ArrowRight', false, document.getElementById('btn-right')); 
+});
+
+// 터치 리스너
+const attachControl = (btn, key) => {
+    btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); }, {passive: false});
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); }, {passive: false});
+};
+attachControl(document.getElementById('btn-left'), 'ArrowLeft');
+attachControl(document.getElementById('btn-right'), 'ArrowRight');
 
 function startGame() {
     document.getElementById('main-screen').style.display = 'none';
     document.getElementById('ingame-ui').style.display = 'block';
     document.getElementById('canvas-container').style.display = 'block';
     document.querySelectorAll('.controller').forEach(el => el.style.display = 'block');
-    
-    const stage = document.getElementById('game-stage');
-    stage.style.backgroundImage = "url('bg_ingame.png')";
-    stage.style.backgroundSize = "100% auto";
-    stage.style.backgroundRepeat = "repeat-y";
-    
+    document.getElementById('game-stage').style.backgroundImage = "url('bg_ingame.png')";
     isPlaying = true;
     initPlatforms();
 }
 
-// --- 인게임 엔진 핵심 로직 (변화 없음) ---
+// --- 인게임 엔진 (버전 1.0 물리) ---
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, moveSpeed: 7, motionHold: 10 };
-const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
-const SIZES = [138, 98, 58]; 
-
-let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverRate = 0, bgScrollY = 0;
-let isSuperJumping = false, isPlaying = false, riveInstance, keys = {}, currentScale = 1;
-let platforms = [], motionTimer = 0, lastLoadedFile = "", woodParticles = [];
+const SIZES = [138, 98, 58];
+let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
+let platforms = [], woodParticles = [], motionTimer = 0, lastLoadedFile = "", currentScale = 1;
 
 class WoodParticle {
     constructor(x, y) {
         this.x = x; this.y = y;
         this.vx = (Math.random() - 0.5) * 12; this.vy = (Math.random() - 0.5) * 12 - 4;
         this.size = 2 + Math.random() * 3; this.rotation = Math.random() * 360;
-        this.rotSpeed = (Math.random() - 0.5) * 15; this.life = 1.0;
+        this.life = 1.0;
     }
-    update() { this.x += this.vx; this.y += this.vy; this.vy += 0.45; this.rotation += this.rotSpeed; this.life -= 0.025; }
+    update() { this.x += this.vx; this.y += this.vy; this.vy += 0.45; this.life -= 0.025; }
 }
 
 function loadRive(fileName) {
     if (lastLoadedFile === fileName) return;
     lastLoadedFile = fileName;
     if (riveInstance) riveInstance.cleanup();
-    riveInstance = new rive.Rive({ src: fileName, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => { riveInstance.resizeDrawingSurfaceToCanvas(); } });
+    riveInstance = new rive.Rive({ src: fileName, canvas: document.getElementById('canvas'), autoplay: true, stateMachines: 'State Machine 1', onLoad: () => riveInstance.resizeDrawingSurfaceToCanvas() });
 }
 
 function initPlatforms() {
-    document.querySelectorAll('.platform, .mouse-enemy, .game-item, .wood-chunk').forEach(el => el.remove());
-    score = 0; cloverRate = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = [];
-    platforms = [];
+    score = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = []; platforms = [];
     let lastY = 752;
-    for (let i = 0; i < 7; i++) { 
-        lastY -= (100 + Math.random() * 100); 
-        platforms.push(createPlatformData(lastY)); 
-    }
-    platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
+    for (let i = 0; i < 7; i++) { lastY -= (120 + Math.random() * 80); platforms.push(createPlatformData(lastY)); }
+    platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, isBroken: false });
     loadRive('kongsik_ingame_air.riv');
 }
 
 function createPlatformData(yPos) {
-    let rand = Math.random();
     let width = SIZES[Math.floor(Math.random() * 3)];
-    let isBreakable = rand < 0.2;
-    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[isBreakable?'wood':'block'][0], isBreakable, durability: 1, isBroken: false, isTouched: false, type: 'normal' };
+    let isBreakable = Math.random() < 0.25;
+    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, isBroken: false };
 }
-
-const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right');
-const setInput = (key, isDown, btn) => { keys[key] = isDown; if(btn) btn.classList.toggle('ctrl-pressed', isDown); };
-const attachControl = (btn, key) => {
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); }, {passive: false});
-    btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); }, {passive: false});
-};
-attachControl(btnLeft, 'ArrowLeft'); attachControl(btnRight, 'ArrowRight');
 
 function update() {
     if (!isPlaying) { requestAnimationFrame(update); return; }
+
+    // 키 입력 처리 
     if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
     if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
     posX = Math.max(-153, Math.min(153, posX));
+    
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
+    
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
     
     woodParticles.forEach(p => p.update());
@@ -191,6 +196,7 @@ function update() {
     });
 
     if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
+    
     if (currentY < -250) {
         let diff = -250 - currentY; currentY = -250; score += diff;
         document.getElementById('score-board').innerText = Math.floor(score * 0.01) + "m";
@@ -201,14 +207,16 @@ function update() {
         });
         woodParticles.forEach(p => p.y += diff);
     }
+
     if (charFootY > 1050) location.reload();
 
     document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
+    
     const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .mouse-enemy, .game-item, .wood-chunk').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .wood-chunk').forEach(el => el.remove());
     woodParticles.forEach(p => {
         const chunk = document.createElement('div'); chunk.className = 'wood-chunk';
-        chunk.style.cssText = `left:${p.x}px; top:${p.y}px; width:${p.size}px; height:${p.size}px; opacity:${p.life}; transform:rotate(${p.rotation}deg);`;
+        chunk.style.cssText = `left:${p.x}px; top:${p.y}px; width:${p.size}px; height:${p.size}px; opacity:${p.life};`;
         stage.appendChild(chunk);
     });
     platforms.forEach(p => {
