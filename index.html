@@ -1,17 +1,17 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 감속 0.1 정밀 튜닝</title>
+  <title>콩콩춘식 - 정밀 튜닝 완료</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body{margin:0;background:#f0f0f0;overflow:hidden;font-family:'Pretendard',system-ui;display:flex;justify-content:center;align-items:center;height:100vh;touch-action:none}
     #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
-
-    /* 필승 비법: 독립 캔버스 + 투명도 스위칭 */
+    
     .chun-layer {
       position: absolute;
       width: 86px !important;
@@ -35,17 +35,15 @@
 
   <div id="start" class="overlay">
     <h1 style="color:#FFEF6B; font-size:32px;">콩콩춘식</h1>
-    <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">캐릭터 로딩 중...</div>
+    <div id="status" style="color:#FFEF6B; font-weight:800; margin-bottom:10px;">로딩 중...</div>
     <button class="btn hidden" id="btnStart">게임 시작</button>
   </div>
 </div>
 
 <script>
 (() => {
-  const bgCanvas = document.getElementById('bgCanvas');
   const landCanvas = document.getElementById('landCanvas'), airCanvas = document.getElementById('airCanvas');
   const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
-  bgCanvas.width = 480; bgCanvas.height = 800;
 
   let landRive, airRive;
   let landReady = false, airReady = false;
@@ -56,7 +54,6 @@
       canvas: landCanvas,
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
-      autoplay: false,
       onLoad: () => { landReady = true; landRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
     airRive = new rive.Rive({
@@ -64,7 +61,6 @@
       canvas: airCanvas,
       artboard: 'Artboard',
       stateMachines: 'State Machine 1',
-      autoplay: false,
       onLoad: () => { airReady = true; airRive.resizeDrawingSurfaceToCanvas(); checkReady(); }
     });
   }
@@ -72,7 +68,7 @@
   function checkReady() { if(landReady && airReady) { status.innerText = "준비 완료! 🐯"; btnStart.classList.remove('hidden'); } }
   init();
 
-  // --- 물리 및 모션 설정 ---
+  // 요청하신 정밀 수치 적용
   let jumpPower = -25;    
   let gravity = 1.1;      
   let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
@@ -80,7 +76,7 @@
   let isSpringing = false; 
   let landLockTimer = 0; 
   const MIN_LAND_TIME = 250; // 유지 0.25초
-  const SPRING_DELAY = 200;  // 작동(물리 정지/감속) 0.2초
+  const SPRING_DELAY = 200;  // 작동 0.2초
 
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ lastDir = -1; } 
@@ -94,39 +90,34 @@
     lastTimestamp = timestamp;
 
     if (isSpringing) {
-      p.vy *= 0.1; // 감속 0.1 적용: 바닥에 닿을 때 90% 감속
+      p.vy *= 0.15; // 감속 0.15 적용 완료
     } else {
       p.vy += gravity;
     }
     p.y += p.vy;
 
-    // 1. 착지 시 (1번 모션 리셋 및 재생 보장)
+    // 1. 착지 시 (1번 모션 무한 반복 보장)
     if (p.y > 600 && !isSpringing && p.vy > 0) {
-      p.y = 600;
-      isSpringing = true;
-      landLockTimer = MIN_LAND_TIME; 
-      
-      if (!landCanvas.classList.contains('active-chun')) {
-        setLayer(landCanvas); 
-        landRive.pause("State Machine 1");
-        landRive.scrub("State Machine 1", 0);
-        landRive.play("State Machine 1");
-      }
+      p.y = 600; 
+      isSpringing = true; 
+      landLockTimer = MIN_LAND_TIME;
 
-      setTimeout(() => {
-        p.vy = jumpPower;
-        isSpringing = false;
+      setLayer(landCanvas); // 레이어 교체 시 기존 클래스 제거
+      landRive.scrub("State Machine 1", 0);
+      landRive.play("State Machine 1");
+
+      setTimeout(() => { 
+        p.vy = jumpPower; 
+        isSpringing = false; 
       }, SPRING_DELAY);
     } 
 
-    // 2. 공중 상승 시 (2번 모션 멈춤 방지)
+    // 2. 상승 시 (2번 모션 멈춤 방지)
     if (landLockTimer > 0) {
       landLockTimer -= dt;
-    } 
-    else if (p.vy < 0) {
+    } else if (p.vy < 0) {
       if (!airCanvas.classList.contains('active-chun')) {
         setLayer(airCanvas);
-        airRive.pause("State Machine 1");
         airRive.scrub("State Machine 1", 0);
         airRive.play("State Machine 1");
       }
@@ -151,8 +142,6 @@
     document.getElementById('start').classList.add('hidden');
     isRunning = true;
     p.vy = jumpPower;
-    landRive.resizeDrawingSurfaceToCanvas();
-    airRive.resizeDrawingSurfaceToCanvas();
     lastTimestamp = performance.now();
     loop(lastTimestamp);
   };
