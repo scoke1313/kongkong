@@ -65,7 +65,16 @@
 </head>
 <body>
 
+<div id="game-stage">
+    <div id="nav-bar">
+        <img src="Navigation.png" id="btn-close" alt="close" onclick="location.reload();">
+    </div>
 
+    <div id="score-board">0m</div>
+    <div id="rate-board">Rate: +0.00%</div> <div id="canvas-container"><canvas id="canvas"></canvas></div>
+    <div id="btn-left" class="controller ctrl-default"></div>
+    <div id="btn-right" class="controller ctrl-default"></div>
+</div>
 
 <script>
 // 이후 자바스크립트 로직은 이전과 동일하게 유지 (클로버 위치 수정 없음)
