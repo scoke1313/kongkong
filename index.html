@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 아트보드 자동화</title>
+  <title>콩콩춘식 - Rive 최적화</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -13,9 +13,9 @@
     #hud{position:absolute;top:16px;left:16px;z-index:5;background:rgba(255,255,255,.92);padding:10px 14px;border-radius:999px;font-weight:1000;color:#111827;}
     .overlay{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.6);color:#fff;text-align:center;padding:24px}
     .btn{margin-top:18px;padding:14px 38px;font-size:18px;font-weight:1000;background:#FEE500;color:#111827;border:0;border-radius:999px;cursor:pointer}
+    .hidden{display:none!important}
     #touchL,#touchR{position:absolute;bottom:0;width:50%;height:100%;z-index:3}
     #touchL{left:0} #touchR{right:0}
-    .hidden{display:none!important}
   </style>
 </head>
 <body>
@@ -39,93 +39,89 @@
   function resize(){ canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; }
   window.addEventListener('resize', resize); resize();
 
+  // Rive 캔버스 (86x112)
   const RIVE_W = 86, RIVE_H = 112;
   const riveCanvas = document.createElement('canvas');
   riveCanvas.width = RIVE_W; riveCanvas.height = RIVE_H;
   let kongsikLoaded = false;
 
-  // --- 핵심: 이름 대신 '첫 번째 것'을 불러오는 로직 ---
-  async function initRive() {
+  // 이름 무시하고 첫 번째 리소스 로드
+  async function loadRive() {
     try {
-      const riveFile = await rive.load({ src: 'kongsik_ingame.riv' });
-      // 파일 내의 0번째 아트보드를 무조건 선택
-      const artboard = riveFile.artboardByIndex(0); 
-      const stateMachine = artboard.stateMachineByIndex(0) || artboard.animationByIndex(0);
-
-      const r = new rive.Rive({
-        riveFile: riveFile,
+      const file = await rive.load({ src: 'kongsik_ingame.riv' });
+      const artboard = file.artboardByIndex(0);
+      
+      new rive.Rive({
+        riveFile: file,
         canvas: riveCanvas,
-        artboard: artboard.name, // 인덱스로 찾은 아트보드의 실제 이름을 자동으로 넘김
-        stateMachines: stateMachine ? stateMachine.name : undefined,
+        artboard: artboard.name,
         autoplay: true,
-        onLoad: () => {
-          r.resizeDrawingSurfaceToCanvas();
-          kongsikLoaded = true;
-          console.log("Rive Loaded: ", artboard.name);
-        }
+        stateMachines: artboard.stateMachineNames[0],
+        onLoad: () => { kongsikLoaded = true; }
       });
-    } catch (e) { console.error("Rive 로드 실패:", e); }
+    } catch(e) { console.error("Rive 로드 실패:", e); }
   }
-  initRive();
+  loadRive();
 
   let p = { x: 0, y: 0, vx: 0, vy: -12 };
   let platforms = [];
   let isRunning = false;
   let lastTime = 0;
+  let lastInputDir = 1;
   const keys = { left: false, right: false };
 
-  window.addEventListener('keydown', e => { if(e.code==='ArrowLeft') keys.left=true; if(e.code==='ArrowRight') keys.right=true; });
+  // 조작부
+  window.addEventListener('keydown', e => { if(e.code==='ArrowLeft') {keys.left=true; lastInputDir=-1;} if(e.code==='ArrowRight') {keys.right=true; lastInputDir=1;} });
   window.addEventListener('keyup', e => { if(e.code==='ArrowLeft') keys.left=false; if(e.code==='ArrowRight') keys.right=false; });
+  document.getElementById('touchL').ontouchstart = () => {keys.left=true; lastInputDir=-1;};
+  document.getElementById('touchL').ontouchend = () => keys.left=false;
+  document.getElementById('touchR').ontouchstart = () => {keys.right=true; lastInputDir=1;};
+  document.getElementById('touchR').ontouchend = () => keys.right=false;
 
   function reset() {
-    p.x = canvas.width / 2; p.y = canvas.height - 200; p.vy = -12;
+    p.x = canvas.width / 2; p.y = canvas.height - 200; p.vx = 0; p.vy = -12;
     platforms = [];
     for(let i=0; i<8; i++) platforms.push({ x: Math.random()*(canvas.width-120), y: canvas.height-70-i*92 });
   }
 
   function loop(now) {
     if(!isRunning) return;
-    let dt = (now - lastTime) / 1000;
-    lastTime = now;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 물리 및 이동
     if(keys.left) p.vx = -6.5; else if(keys.right) p.vx = 6.5; else p.vx *= 0.85;
     p.x += p.vx; p.vy += 0.45; p.y += p.vy;
 
-    if(p.x < -40) p.x = canvas.width + 40; if(p.x > canvas.width + 40) p.x = -40;
+    if(p.x < -30) p.x = canvas.width + 30; if(p.x > canvas.width + 30) p.x = -30;
 
-    // 발판 그리기 (디자인 반영)
+    // 발판 그리기
     ctx.fillStyle = "#9CCC65";
     platforms.forEach(pl => {
       ctx.fillRect(pl.x, pl.y, 120, 15);
-      if(p.vy > 0 && p.x > pl.x-20 && p.x < pl.x+140 && p.y+40 >= pl.y && p.y+40 <= pl.y+20) p.vy = -12;
+      if(p.vy > 0 && p.x > pl.x-15 && p.x < pl.x+135 && p.y+35 >= pl.y && p.y+35 <= pl.y+20) p.vy = -12;
     });
 
+    // 스크롤
     if(p.y < canvas.height/2 && p.vy < 0) {
       let dy = -p.vy; p.y += dy;
       platforms.forEach(pl => { pl.y += dy; if(pl.y > canvas.height) { pl.y -= 92*8; pl.x = Math.random()*(canvas.width-120); } });
     }
 
-    // 캐릭터 그리기
+    // 캐릭터 드로잉
     if(kongsikLoaded) {
       ctx.save();
       ctx.translate(p.x, p.y);
+      if(lastInputDir === 1) ctx.scale(-1, 1);
       ctx.drawImage(riveCanvas, -RIVE_W/2, -RIVE_H/2, RIVE_W, RIVE_H);
       ctx.restore();
     } else {
-      // 캐릭터가 안 보일 때를 대비한 가이드 박스
-      ctx.fillStyle = "rgba(254, 229, 0, 0.5)";
-      ctx.fillRect(p.x - 20, p.y - 30, 40, 60);
+      ctx.fillStyle = "rgba(254, 229, 0, 0.7)";
+      ctx.fillRect(p.x - 20, p.y - 25, 40, 50);
     }
-
-    if(p.y > canvas.height + 100) reset();
     requestAnimationFrame(loop);
   }
 
-  btnStart.onclick = () => {
-    document.getElementById('start').classList.add('hidden');
-    isRunning = true; reset(); lastTime = performance.now(); loop(performance.now());
-  };
+  btnStart.onclick = () => { document.getElementById('start').classList.add('hidden'); isRunning = true; reset(); lastTime = performance.now(); loop(performance.now()); };
 })();
 </script>
 </body>
