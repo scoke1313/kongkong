@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 찐한 황금빛 패치</title>
+    <title>콩콩춘식 - UI 가시성 개선 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,17 +13,14 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 상단 네비게이션 바 (엑스자 교정) --- */
+        /* --- 상단 네비게이션 바 (유동폭 수정) --- */
         #nav-bar {
             position: absolute; top: 0; left: 0; width: 100%; max-width: 393px; height: 60px;
-            display: flex; align-items: flex-end; padding: 0 20px 10px 20px; box-sizing: border-box; z-index: 110;
+            display: flex; align-items: center; padding: 0 20px; box-sizing: border-box; z-index: 110;
         }
-        #btn-close { 
-            width: 40px; height: 40px; cursor: pointer; 
-            object-fit: contain; object-position: left bottom; 
-        }
+        #btn-close { width: 28px; height: 28px; cursor: pointer; }
 
-        /* UI 배치 */
+        /* 숫자 UI 배치 */
         #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
         #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
@@ -32,28 +29,22 @@
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
 
-        /* ★ 찐한 황금 옐로우 번쩍임 효과 (Deep Golden Yellow) */
+        /* 황금빛 번쩍임 효과 */
         @keyframes flicker {
-            0% { 
-                opacity: 1; 
-                filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.9)) brightness(1.1); 
-            }
-            50% { 
-                opacity: 0.85; 
-                filter: drop-shadow(0 0 30px rgba(255, 190, 0, 1)) brightness(1.3); 
-            }
-            100% { 
-                opacity: 1; 
-                filter: drop-shadow(0 0 15px rgba(255, 140, 0, 0.9)) brightness(1.1); 
-            }
+            0% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); }
+            50% { opacity: 0.8; filter: drop-shadow(0 0 25px rgba(255, 215, 0, 0.9)) brightness(1.5); }
+            100% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 190, 0, 0.8)) brightness(1.2); }
         }
-        .gold-glow { animation: flicker 0.12s infinite; }
+        .gold-glow { animation: flicker 0.15s infinite; }
 
         canvas { width: 100%; height: 100%; }
-        .platform { position: absolute; background-size: 100% 100%; z-index: 5; }
+        .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
+        .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
+        
+        /* 아이템 50px */
         .game-item { position: absolute; width: 50px; height: 50px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
         
-        /* 픽업 이펙트 (2배 사이즈) */
+        /* ★ 픽업 이펙트 2배 확대 (160x80) */
         .pickup-effect { 
             position: absolute; width: 160px; height: 80px; 
             background-image: url('effect_pickup.png'); background-size: contain;
@@ -61,7 +52,13 @@
             z-index: 120; pointer-events: none; transition: transform 0.8s, opacity 0.8s; 
         }
         
-        .controller { position: absolute; width: 80px; height: 80px; background-size: contain; z-index: 50; cursor: pointer; }
+        .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
+        
+        /* 컨트롤러 */
+        .controller {
+            position: absolute; width: 80px; height: 80px; background-size: contain;
+            z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+        }
         #btn-left { left: 30px; bottom: 40px; transform: scaleX(-1); }
         #btn-right { right: 30px; bottom: 40px; }
         .ctrl-default { background-image: url('controller_Default.png'); }
@@ -76,7 +73,7 @@
     </div>
 
     <div id="score-board">0m</div>
-    <div id="rate-board">+0.00%</div>
+    <div id="rate-board">Rate: +0.00%</div>
 
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
@@ -91,7 +88,8 @@ const SIZES = [138, 98, 58];
 let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverRate = 0, bgScrollY = 0;
 let isSuperJumping = false;
 let riveInstance, keys = {}, currentScale = 1;
-let platforms = [], motionTimer = 0, lastLoadedFile = "";
+let platforms = [], particles = [], motionTimer = 0, lastLoadedFile = "";
+let mouseAnimFrame = 0;
 
 const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), 
       scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board'),
@@ -102,8 +100,14 @@ const setInput = (key, isDown, btn) => {
     if(btn) { btn.classList.toggle('ctrl-default', !isDown); btn.classList.toggle('ctrl-pressed', isDown); }
 };
 
-window.addEventListener('keydown', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight); });
-window.addEventListener('keyup', (e) => { if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft); if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight); });
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight);
+});
 
 const attachControl = (btn, key) => {
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
@@ -125,95 +129,4 @@ function createPlatformData(yPos) {
     const width = SIZES[sizeIdx];
     let woodProb = 0.2 + (Math.min(distM, 500) / 500) * 0.7;
     let isBreakable = rand < woodProb;
-    const typeKey = isBreakable ? 'wood' : 'block';
-    let canHaveMouse = (width === 138) && (rand < 0.2); 
-    let itemType = null;
-    if (!canHaveMouse && rand > 0.85) { itemType = Math.random() > 0.6 ? 'gold' : 'clover'; }
-    let moveProb = distM < 100 ? 0.05 : Math.min(0.4, 0.05 + (0.35 * ((distM - 100) / 400)));
-    let moveType = (rand < moveProb) ? (distM < 100 ? 'h' : (Math.random() > 0.5 ? 'h' : 'v')) : 'normal';
-    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[typeKey][sizeIdx], isBreakable: isBreakable, durability: isBreakable ? 1 : 999, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1, mouseSpeed: 0.7 + Math.random() * 0.5, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false, isTouched: false };
-}
-
-function initPlatforms() {
-    document.querySelectorAll('.platform, .game-item, .pickup-effect').forEach(el => el.remove());
-    score = 0; cloverRate = 0; isSuperJumping = false;
-    scoreEl.innerText = "0m"; rateEl.innerText = "+0.00%";
-    bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
-    canvasCont.classList.remove('gold-glow');
-    platforms = []; 
-    let lastY = 752;
-    for (let i = 0; i < 6; i++) { lastY -= (100 + Math.random() * 110); platforms.push(createPlatformData(lastY)); }
-    platforms.push({ x: 393/2-69, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, durability: 999, isTouched: false, type: 'normal' });
-}
-
-loadRive('kongsik_ingame_air.riv');
-initPlatforms();
-
-function update() {
-    if (keys['ArrowLeft']) { posX -= PHYSICS.moveSpeed; currentScale = -1; }
-    if (keys['ArrowRight']) { posX += PHYSICS.moveSpeed; currentScale = 1; }
-    const limit = 393/2 - 43; posX = Math.max(-limit, Math.min(limit, posX));
-    velocityY += isSuperJumping ? PHYSICS.gravity * 0.5 : PHYSICS.gravity;
-    currentY += velocityY;
-    const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
-    if (isSuperJumping && velocityY >= 0) { isSuperJumping = false; canvasCont.classList.remove('gold-glow'); }
-    
-    platforms.forEach(p => {
-        if (!p.isBroken) {
-            if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
-            else if (p.type === 'v') { p.vPhase += 0.03; p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange; }
-            
-            if (p.item && !p.itemCollected) {
-                let ix = p.x + p.w/2 - 25, iy = p.y - 55;
-                if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
-                    p.itemCollected = true;
-                    if (p.item === 'clover') {
-                        cloverRate += 0.1; rateEl.innerText = `+${cloverRate.toFixed(2)}%`;
-                        let eff = document.createElement('div');
-                        eff.className = 'pickup-effect'; 
-                        eff.style.left = (ix + 60) + 'px'; // 춘식이 오른쪽 배치
-                        eff.style.top = (iy - 40) + 'px'; 
-                        document.getElementById('game-stage').appendChild(eff);
-                        setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10);
-                        setTimeout(() => eff.remove(), 800);
-                    } else if (p.item === 'gold') { 
-                        isSuperJumping = true; velocityY = PHYSICS.superJumpPower; 
-                        canvasCont.classList.add('gold-glow'); // 찐한 황금빛 효과 적용
-                        loadRive('kongsik_ingame_air.riv'); 
-                    }
-                }
-            }
-            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { 
-                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; motionTimer = PHYSICS.motionHold; 
-                p.isTouched = true; if (p.isBreakable) { p.durability--; if (p.durability <= 0) p.isBroken = true; } 
-            }
-        }
-    });
-
-    if (motionTimer > 0) { motionTimer--; if (motionTimer === 1) loadRive('kongsik_ingame_air.riv'); }
-    if (currentY < -250) {
-        let diff = -250 - currentY; currentY = -250; score += diff; scoreEl.innerText = Math.floor(score * 0.01) + "m";
-        bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
-        platforms.forEach(p => { p.y += diff; p.baseY += diff; if (p.y > 852 && p.baseY > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (50 + Math.random() * 160))); p.isBroken = false; } });
-    }
-    if (charFootY > 1050) initPlatforms();
-    document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
-    
-    const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .game-item').forEach(el => el.remove());
-    platforms.forEach(p => {
-        if (!p.isBroken) {
-            const d = document.createElement('div'); d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`;
-            stage.appendChild(d);
-            if (p.item && !p.itemCollected) {
-                const itemDiv = document.createElement('div'); itemDiv.className = 'game-item'; itemDiv.style.backgroundImage = `url('item_${p.item}.png')`; itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
-                stage.appendChild(itemDiv);
-            }
-        }
-    });
-    requestAnimationFrame(update);
-}
-update();
-</script>
-</body>
-</html>
+    const typeKey = isBreakable ? 'wood
