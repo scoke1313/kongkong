@@ -23,10 +23,11 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 0 20px; box-sizing: border-box; z-index: 1000;
         }
-   #score-board { position: absolute; top: 0; left: 20px; font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
-        .rate-capsule { position: absolute; top: -1px; right: 20px; width: 130px; height: 46px; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; box-sizing: border-box; overflow: visible; }
-        .ui-icon { position: absolute; top: 0; left: 0; width: 25px; height: 25px; object-fit: contain; transform: translate(12px, 9px); }
-        #rate-board { position: absolute; top: 0; left: 25px; font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; line-height: 46px; transform: translate(25px, -2px); white-space: nowrap; }
+        #score-board { font-family: 'Poetsen One', sans-serif; font-size: 38px; color: #2D1D1C; line-height: 1; }
+        .rate-capsule {
+            display: flex; align-items: center; justify-content: center;
+            background: #FFFFFF; border: 2px solid #F0E0C6;
+            border-radius: 30px; width: 130px; height: 46px; box-sizing: border-box;
         }
         .ui-icon { width: 25px; height: 25px; margin-right: 6px; object-fit: contain; }
         #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
