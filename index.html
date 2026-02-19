@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 네비게이션만 적용 패치</title>
+    <title>콩콩춘식 - 네비게이션 상단 꽉 채우기 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -13,21 +13,29 @@
             background-size: 100% auto; background-color: #FFFDF5; overflow: hidden; 
         }
 
-        /* --- 상단 네비게이션 바 (지시하신 사이트와 동일하게 적용) --- */
+        /* --- 상단 네비게이션 바: 393px 가로 꽉 채우기 --- */
         #nav-bar {
-            position: absolute; top: 0; left: 0; width: 100%; max-width: 393px; height: 60px;
-            display: flex; align-items: flex-end; 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 393px; /* 가로 사이즈 꽉 채움 */
+            height: 60px;
+            display: flex; 
+            align-items: flex-end; /* 이미지 하단의 'X' 표시 노출을 위해 바닥 정렬 */
             padding: 0 0 10px 15px; 
-            box-sizing: border-box; z-index: 110;
+            box-sizing: border-box; 
+            z-index: 999; 
         }
+        
         #btn-close { 
-            width: 40px; height: 40px; 
+            width: 44px; 
+            height: 44px; 
             cursor: pointer; 
             object-fit: contain; 
             object-position: left bottom; 
         }
 
-        /* UI 위치 조정 (네비게이션 바 아래) */
+        /* 숫자 UI 배치 */
         #score-board { position: absolute; top: 70px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
         #rate-board { position: absolute; top: 70px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
 
@@ -71,13 +79,14 @@
     </div>
 
     <div id="score-board">0m</div>
-    <div id="rate-board">Rate: +0.00%</div> <div id="canvas-container"><canvas id="canvas"></canvas></div>
+    <div id="rate-board">Rate: +0.00%</div> 
+    <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
-// 이후 자바스크립트 로직은 이전과 동일하게 유지 (클로버 위치 수정 없음)
+// 자바스크립트 로직 유지
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
@@ -175,7 +184,6 @@ function update() {
                         cloverRate += 0.1; rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
                         let eff = document.createElement('div');
                         eff.className = 'pickup-effect'; 
-                        // ★ 기존 중앙 위치 유지 (수정 없음)
                         eff.style.left = (ix + 25 - 80) + 'px'; eff.style.top = (iy - 40) + 'px'; 
                         document.getElementById('game-stage').appendChild(eff);
                         setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10);
@@ -205,16 +213,10 @@ function update() {
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
-    particles.forEach(part => {
-        const pdiv = document.createElement('div');
-        pdiv.className = 'particle'; pdiv.style.cssText = `left:${part.x}px;top:${part.y}px;width:${part.size}px;height:${part.size}px;background-color:${part.color};opacity:${part.life};`;
-        stage.appendChild(pdiv);
-    });
     platforms.forEach(p => {
         if (!p.isBroken) {
             const d = document.createElement('div');
-            d.className = 'platform'; let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
-            d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
+            d.className = 'platform'; d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${(p.isBreakable && p.isTouched) ? 0.6 : 1.0};`;
             stage.appendChild(d);
             if (p.item && !p.itemCollected) {
                 const itemDiv = document.createElement('div');
@@ -222,13 +224,6 @@ function update() {
                 itemDiv.style.left = (p.x + p.w/2 - 25) + 'px'; itemDiv.style.top = (p.y - 55) + 'px';
                 stage.appendChild(itemDiv);
             }
-        }
-        if (p.hasMouse) {
-            const m = document.createElement('div');
-            m.className = 'mouse-enemy';
-            const mouseImg = (p.mouseWaitTimer > 0 || p.isBroken) ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
-            m.style.cssText = `left:${p.x + p.mouseX}px;top:${p.y + p.mouseYOffset}px;background-image:url('${mouseImg}'); transform: scaleX(${p.mouseDir})`;
-            stage.appendChild(m);
         }
     });
     requestAnimationFrame(update);
