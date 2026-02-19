@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 초강력 넉백 패치</title>
+    <title>콩콩춘식 - 넉백 및 파티클 밸런스 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -18,7 +18,7 @@
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
-        .particle { position: absolute; z-index: 4; pointer-events: none; }
+        .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
             z-index: 50; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -98,16 +98,17 @@ function createPlatformData(yPos) {
     };
 }
 
+// 입자 크기와 색상을 수정한 파편 생성 함수
 function spawnBreakParticles(x, y, width) {
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 15; i++) {
         particles.push({
             x: x + Math.random() * width,
             y: y,
-            vx: (Math.random() - 0.5) * 10,
-            vy: (Math.random() - 1) * 8,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 1) * 6,
             life: 1.0,
-            size: Math.random() * 6 + 4,
-            color: '#8D6E63'
+            size: Math.random() * 3 + 2, // 입자 크기 축소 (2~5px)
+            color: '#BCAAA4' // 연한 나무색으로 변경
         });
     }
 }
@@ -156,10 +157,10 @@ function update() {
                 }
             }
             let mx = p.x + p.mouseX, my = p.y - 35;
-            // ★ 쥐돌이 충돌 넉백 강화 (10 -> 15)
+            // ★ 넉백 수치 조정: 수직 -12, 수평 50
             if (charLeft + 35 > mx + 20 && charLeft + 15 < mx + 52 && charFootY > my && charFootY < my + 45) {
-                velocityY = -15; // 기존 -10에서 강화
-                posX += (posX > (mx - p.x) ? 60 : -60); // 기존 40에서 강화
+                velocityY = -12; // -15에서 -12로 조정
+                posX += (posX > (mx - p.x) ? 50 : -50); // 60에서 50으로 조정
             }
         }
 
@@ -178,7 +179,7 @@ function update() {
         }
     });
 
-    particles.forEach((part, idx) => {
+    particles.forEach((part) => {
         part.x += part.vx; part.y += part.vy; part.vy += 0.4; part.life -= 0.02;
     });
     particles = particles.filter(part => part.life > 0);
