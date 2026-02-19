@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 일반 점프 230px 보정판 (쥐돌이 추가)</title>
+    <title>콩콩춘식 - 쥐돌이 추락 보정본</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -78,8 +78,8 @@
 
 <script>
 // 점프 높이 230px 보정 (jumpPower: -19.3)
-const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 }; 
-const SIZES = [138, 98, 58]; 
+const PHYSICS = { gravity: 0.81, jumpPower: -19.3, superJumpPower: -68, moveSpeed: 7 };
+const SIZES = [138, 98, 58];
 let score = 0, cloverCount = 0, currentY = 0, velocityY = 0, posX = 0, bgScrollY = 0;
 let riveInstance, mainRiveInstance, keys = {}, currentScale = 1, platforms = [], lastLoadedFile = "", isGameRunning = false, mouseAnimFrame = 0;
 
@@ -98,13 +98,11 @@ function loadRive(f) { if (lastLoadedFile === f) return; lastLoadedFile = f; if 
 function createPlatformData(y) {
     let distM = Math.floor(score * 0.01), rand = Math.random();
     let isBreakable = (rand < 0.15 + (Math.min(distM, 500) / 500) * 0.75);
-    let moveType = (rand < Math.min(0.5, 0.1 + (0.4 * (distM / 500)))) ? (distM < 150 ? 'h' : (Math.random() > 0.5 ? 'h' : 'v')) : 'normal';
-    let itemType = (rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
     let sIdx = distM < 100 ? Math.floor(rand * 2) : Math.floor(rand * 3);
     const width = SIZES[sIdx];
-    // 쥐돌이 데이터 추가
-    let canHaveMouse = (width >= 98) && (rand < 0.2); 
-    return { x: Math.random() * (393 - width), y, baseY: y, w: width, h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40, vPhase: Math.random() * 6.28, isBroken: false, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 1 };
+    let canHaveMouse = (width >= 98) && (rand < 0.2);
+    let itemType = (!canHaveMouse && rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
+    return { x: Math.random() * (393 - width), y, baseY: y, w: width, h: 22, img: isBreakable ? 'wood_1.png' : 'block_1.png', isBreakable, item: itemType, itemCollected: false, type: 'normal', speed: 1.6, verticalRange: 40, vPhase: Math.random() * 6.28, isBroken: false, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 1 };
 }
 
 function initPlatforms() { score = 0; currentY = 0; velocityY = 0; posX = 0; scoreEl.innerText = "0m"; rateEl.innerText = "0.00%"; platforms = []; let lastY = 752; for (let i = 0; i < 7; i++) { lastY -= (110 + Math.random() * 100); platforms.push(createPlatformData(lastY)); } platforms.push({ x: 127, y: 752, baseY: 752, w: 138, h: 22, img: 'block_1.png', isBreakable: false, type: 'normal' }); }
@@ -117,18 +115,14 @@ function update() {
     const charLeft = 196 + posX - 25, charFootY = 752 + currentY;
 
     platforms.forEach(p => {
-        // 쥐돌이 이동 및 충돌 (히트박스 가로 10px, 세로 20px)
         if (p.hasMouse && !p.isBroken) {
             p.mouseX += p.mouseDir * p.mouseSpeed; if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) p.mouseDir *= -1;
             let mx = p.x + p.mouseX, my = p.y - 35;
-            if (charLeft + 30 > mx + 30 && charLeft + 20 < mx + 40 && charFootY > my && charFootY < my + 20) { 
-                velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50); 
+            if (charLeft + 30 > mx + 30 && charLeft + 20 < mx + 40 && charFootY > my && charFootY < my + 20) {
+                velocityY = -12; posX += (posX > (mx - p.x) ? 50 : -50);
             }
         }
-
         if (!p.isBroken) {
-            if (p.type === 'h') { p.x += p.speed; if (p.x <= 0 || p.x + p.w >= 393) p.speed *= -1; } 
-            else if (p.type === 'v') { p.vPhase += 0.03; p.y = p.baseY + Math.sin(p.vPhase) * 40; }
             if (p.item && !p.itemCollected) {
                 let ix = p.x + p.w/2 - 25, iy = p.y - 55;
                 if (charLeft + 45 > ix && charLeft + 5 < ix + 50 && charFootY > iy && charFootY < iy + 50) {
@@ -137,13 +131,24 @@ function update() {
                     else if (p.item === 'gold') velocityY = PHYSICS.superJumpPower;
                 }
             }
-            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) { 
-                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; if (p.isBreakable) p.isBroken = true; 
+            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
+                loadRive('kongsik_ingame_land.riv'); velocityY = PHYSICS.jumpPower; currentY = p.y - 752; if (p.isBreakable) p.isBroken = true;
                 setTimeout(() => loadRive('kongsik_ingame_air.riv'), 200);
             }
         }
     });
-    if (currentY < -250) { let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px'; platforms.forEach(p => { p.y += d; p.baseY += d; if (p.y > 852) { Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (100 + Math.random() * 100))); p.isBroken = false; } }); }
+
+    if (currentY < -250) {
+        let d = -250 - currentY; currentY = -250; score += d; scoreEl.innerText = Math.floor(score * 0.01) + "m"; bgScrollY += d; document.getElementById('bg-layer').style.backgroundPositionY = (bgScrollY % 852) + 'px';
+        platforms.forEach(p => {
+            p.y += d; p.baseY += d;
+            if (p.y > 852) {
+                // 발판 재생성 시 쥐돌이 상태를 포함한 데이터를 완전히 갱신하여 추락(제거) 처리
+                Object.assign(p, createPlatformData(Math.min(...platforms.map(pl => pl.y)) - (110 + Math.random() * 100)));
+                p.isBroken = false;
+            } 
+        });
+    }
     if (752 + currentY > 1050) showResult();
     canvasCont.style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     
