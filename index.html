@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 발판 폭주 방지 패치</title>
+    <title>콩콩춘식 - 키보드 복구 완결판</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -52,12 +52,26 @@ let startTime = Date.now();
 
 const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), scoreEl = document.getElementById('score-board');
 
-// [입력 제어]
+// [통합 입력 제어] 버튼과 키보드 모두 동일한 함수 사용
 const setInput = (key, isDown, btn) => { 
     keys[key] = isDown; 
-    btn.classList.toggle('ctrl-default', !isDown); 
-    btn.classList.toggle('ctrl-pressed', isDown); 
+    if(btn) {
+        btn.classList.toggle('ctrl-default', !isDown); 
+        btn.classList.toggle('ctrl-pressed', isDown); 
+    }
 };
+
+// 키보드 이벤트 복구
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', true, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', true, btnRight);
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowLeft') setInput('ArrowLeft', false, btnLeft);
+    if (e.code === 'ArrowRight') setInput('ArrowRight', false, btnRight);
+});
+
+// 버튼 터치/마우스 조작
 const attachControl = (btn, key) => {
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); setInput(key, true, btn); });
     btn.addEventListener('touchend', (e) => { e.preventDefault(); setInput(key, false, btn); });
@@ -82,8 +96,6 @@ function createPlatformData(yPos) {
     const playTime = (Date.now() - startTime) / 1000;
     let isBreakable = (playTime < 10) ? (rand < 0.1) : (rand > 0.25);
     const typeKey = isBreakable ? 'wood' : 'block';
-    
-    // 움직이는 발판 확률 조정
     let moveType = (rand > 0.92) ? 'h' : 'normal'; 
 
     return {
@@ -95,19 +107,13 @@ function createPlatformData(yPos) {
     };
 }
 
-// [핵심] 리셋 시 폭주 방지 로직 강화
 function initPlatforms() {
-    // 1. 기존 발판 엘리먼트 즉시 삭제
     document.querySelectorAll('.platform').forEach(el => el.remove());
-    
-    // 2. 물리 및 점수 변수 초기화
     score = 0; scoreEl.innerText = "0m";
     bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
     document.getElementById('game-stage').style.backgroundPositionY = '0px';
-    
     startTime = Date.now();
     platforms = [];
-    
     let lastY = 752;
     for (let i = 0; i < 5; i++) {
         lastY -= (160 + Math.random() * 30);
@@ -128,7 +134,6 @@ function update() {
     velocityY += PHYSICS.gravity;
     currentY += velocityY;
 
-    // 발판 수평 이동 로직
     platforms.forEach(p => {
         if (!p.isBroken && p.type === 'h') {
             p.x += p.speed;
@@ -153,7 +158,6 @@ function update() {
         });
     }
 
-    // 스크롤 처리
     if (currentY < -250) {
         let diff = -250 - currentY;
         currentY = -250; score += Math.floor(diff); scoreEl.innerText = score + "m";
@@ -169,12 +173,11 @@ function update() {
         });
     }
 
-    // 추락 리셋
     if (charFootY > 950) initPlatforms();
 
+    // [짜브 방지] 비율 고정 상태로 변환
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     
-    // 렌더링
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform').forEach(el => el.remove());
     platforms.forEach(p => {
