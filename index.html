@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 결과창 통합본</title>
+    <title>콩콩춘식 - 결과창 및 리브 복구본</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -24,25 +24,21 @@
             background-repeat: no-repeat; background-position: center; cursor: pointer; border: none; background-color: transparent; z-index: 2001;
         }
 
-        /* 결과 화면 */
+        /* 결과창 UI */
         #result-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7); z-index: 3000; display: none;
+            background: rgba(0,0,0,0.8); z-index: 3000; display: none;
             justify-content: center; align-items: center; flex-direction: column;
         }
         .result-card {
-            width: 320px; background: white; border-radius: 30px; padding: 40px 20px;
-            text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            width: 300px; background: white; border-radius: 30px; padding: 40px 20px;
+            text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
-        .result-title { font-family: 'Poetsen One', sans-serif; font-size: 28px; color: #2D1D1C; margin-bottom: 20px; }
-        .result-detail { font-size: 16px; color: #666; margin: 5px 0; }
-        .final-rate-wrap { margin: 25px 0; }
-        .final-rate-label { font-size: 18px; font-weight: bold; color: #2D1D1C; }
-        .final-rate-value { font-size: 48px; font-weight: 800; color: #E91E63; font-family: 'Arial', sans-serif; }
-        #retry-button {
-            width: 200px; height: 55px; background: #2D1D1C; color: white;
-            border-radius: 30px; border: none; font-size: 18px; font-weight: bold; cursor: pointer;
-        }
+        .res-title { font-family: 'Poetsen One', sans-serif; font-size: 32px; color: #2D1D1C; margin-bottom: 10px; }
+        .res-stats { font-size: 16px; color: #666; margin: 5px 0; }
+        .res-total-label { font-size: 18px; font-weight: 800; color: #2D1D1C; margin-top: 20px; }
+        .res-total-value { font-size: 50px; font-weight: 900; color: #D1180B; margin-bottom: 25px; }
+        #btn-retry { width: 220px; height: 60px; background: #FEE500; border: none; border-radius: 30px; font-size: 20px; font-weight: bold; cursor: pointer; }
 
         /* 인게임 UI */
         #ingame-ui { display: none; }
@@ -53,7 +49,7 @@
         .rate-capsule { display: flex; align-items: center; justify-content: center; background: #FFFFFF; border: 2px solid #F0E0C6; border-radius: 30px; width: 130px; height: 46px; box-sizing: border-box; }
         #rate-board { font-size: 20px; font-weight: 800; color: #2D1D1C; font-family: 'Arial', sans-serif; }
 
-        /* 게임 요소 */
+        /* 캐릭터/오브젝트 */
         #canvas-container { position: absolute; width: 86px !important; height: 138px !important; bottom: 100px; left: 50%; margin-left: -43px; z-index: 10; display: none; }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
@@ -80,14 +76,12 @@
 
     <div id="result-screen">
         <div class="result-card">
-            <div class="result-title">적금 만기!</div>
-            <div class="result-detail" id="res-dist">점프 거리: 0m</div>
-            <div class="result-detail" id="res-clover">클로버 획득: 0개</div>
-            <div class="final-rate-wrap">
-                <div class="final-rate-label">최종 적용 금리</div>
-                <div class="final-rate-value" id="res-total">0.00%</div>
-            </div>
-            <button id="retry-button" onclick="location.reload()">다시 도전하기</button>
+            <div class="res-title">적금 만기!</div>
+            <div class="res-stats" id="res-dist">거리: 0m (+0.00%)</div>
+            <div class="res-stats" id="res-clover">클로버: 0개 (+0.00%)</div>
+            <div class="res-total-label">최종 적용 금리</div>
+            <div class="res-total-value" id="res-total">0.00%</div>
+            <button id="btn-retry" onclick="location.reload();">다시하기</button>
         </div>
     </div>
 
@@ -95,7 +89,7 @@
         <div id="btn-close-wrap" onclick="location.reload();"><img src="close.png" alt="close"></div>
         <div class="header-ui-container">
             <div id="score-board">0m</div>
-            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0개</span></div>
+            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0.00%</span></div>
         </div>
     </div>
     
@@ -105,7 +99,6 @@
 </div>
 
 <script>
-// --- 상태 변수 ---
 const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58];
@@ -114,13 +107,13 @@ let isPlaying = false, isSuperJumping = false, isGameOver = false;
 let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverCount = 0, bgScrollY = 0;
 let riveInstance, keys = {}, currentScale = 1, platforms = [], woodParticles = [], motionTimer = 0, lastLoadedFile = "", mouseAnimFrame = 0;
 
-// 메인 리브
+// 메인 리브 (kongsik.riv 파일 연동)
 const mainRive = new rive.Rive({
     src: 'kongsik.riv',
     canvas: document.getElementById('main-canvas'),
     autoplay: true,
     stateMachines: 'State Machine 1',
-    onLoad: () => mainRive.resizeDrawingSurfaceToCanvas()
+    onLoad: () => { mainRive.resizeDrawingSurfaceToCanvas(); }
 });
 
 function startGame() {
@@ -139,14 +132,13 @@ function showResult() {
     isGameOver = true;
     
     const distM = Math.floor(score * 0.01);
-    const distRate = distM * 0.01; // 거리당 0.01% 
-    const cloverRate = cloverCount * 0.1; // 클로버당 0.1% 
-    const totalRate = distRate + cloverRate; [cite: 1, 11]
+    const distRate = distM * 0.01;
+    const cloverRate = cloverCount * 0.1;
+    const totalRate = distRate + cloverRate;
 
-    document.getElementById('res-dist').innerText = `점프 거리: ${distM}m (금리 +${distRate.toFixed(2)}%)`; [cite: 1, 11]
-    document.getElementById('res-clover').innerText = `클로버 획득: ${cloverCount}개 (금리 +${cloverRate.toFixed(2)}%)`; [cite: 1, 11]
-    document.getElementById('res-total').innerText = `${totalRate.toFixed(2)}%`; [cite: 1, 11]
-    
+    document.getElementById('res-dist').innerText = `거리: ${distM}m (+${distRate.toFixed(2)}%)`;
+    document.getElementById('res-clover').innerText = `클로버: ${cloverCount}개 (+${cloverRate.toFixed(2)}%)`;
+    document.getElementById('res-total').innerText = `${totalRate.toFixed(2)}%`;
     document.getElementById('result-screen').style.display = 'flex';
 }
 
@@ -193,13 +185,21 @@ function createPlatformData(yPos) {
     let canHaveMouse = (width >= 98) && (rand < 0.2); 
     let itemType = (!canHaveMouse && rand > 0.8) ? (Math.random() > 0.6 ? 'gold' : 'clover') : null;
 
-    return { x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, img: PLATFORM_TYPES[isBreakable?'wood':'block'][sizeIdx], isBreakable, hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 0.7 + Math.random() * 0.6, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false };
+    return { 
+        x: Math.random() * (393 - width), y: yPos, baseY: yPos, w: width, h: 22, 
+        img: PLATFORM_TYPES[isBreakable?'wood':'block'][sizeIdx], isBreakable, 
+        hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 0.7 + Math.random() * 0.6, 
+        mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0, 
+        item: itemType, itemCollected: false, type: moveType, speed: 1.6, 
+        verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, 
+        isBroken: false, isTouched: false 
+    };
 }
 
 function initPlatforms() {
     score = 0; cloverCount = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = [];
     document.getElementById('score-board').innerText = "0m";
-    document.getElementById('rate-board').innerText = "0개";
+    document.getElementById('rate-board').innerText = "0.00%";
     platforms = [];
     let lastY = 752;
     for (let i = 0; i < 7; i++) { lastY -= (120 + Math.random() * 80); platforms.push(createPlatformData(lastY)); }
@@ -210,7 +210,8 @@ function initPlatforms() {
 function spawnPickupEffect(x, y) {
     const eff = document.createElement('div');
     eff.className = 'pickup-effect';
-    eff.style.left = (x - 80) + 'px'; eff.style.top = (y - 40) + 'px';
+    eff.style.left = (x - 80) + 'px';
+    eff.style.top = (y - 40) + 'px';
     document.getElementById('game-stage').appendChild(eff);
     setTimeout(() => { eff.style.transform = 'translateY(-80px)'; eff.style.opacity = '0'; }, 10);
     setTimeout(() => eff.remove(), 800);
@@ -254,7 +255,8 @@ function update() {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
                         cloverCount++;
-                        document.getElementById('rate-board').innerText = `${cloverCount}개`; [cite: 1, 11]
+                        let currentRate = (Math.floor(score * 0.01) * 0.01) + (cloverCount * 0.1);
+                        document.getElementById('rate-board').innerText = currentRate.toFixed(2) + "%";
                         spawnPickupEffect(ix + 25, iy);
                     } else if (p.item === 'gold') { 
                         isSuperJumping = true; velocityY = PHYSICS.superJumpPower; 
@@ -274,7 +276,9 @@ function update() {
     
     if (currentY < -250) {
         let diff = -250 - currentY; currentY = -250; score += diff;
-        document.getElementById('score-board').innerText = Math.floor(score * 0.01) + "m"; [cite: 1, 11]
+        document.getElementById('score-board').innerText = Math.floor(score * 0.01) + "m";
+        let currentRate = (Math.floor(score * 0.01) * 0.01) + (cloverCount * 0.1);
+        document.getElementById('rate-board').innerText = currentRate.toFixed(2) + "%";
         bgScrollY += diff; document.getElementById('game-stage').style.backgroundPositionY = (bgScrollY % 852) + 'px';
         platforms.forEach(p => { 
             p.y += diff; p.baseY += diff;
@@ -287,7 +291,7 @@ function update() {
         woodParticles.forEach(p => p.y += diff);
     }
 
-    if (charFootY > 1050) showResult(); [cite: 1, 11]
+    if (charFootY > 1050) showResult();
 
     document.getElementById('canvas-container').style.transform = `translate(${posX}px, ${currentY}px) scaleX(${currentScale})`;
     
