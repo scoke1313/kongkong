@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>콩콩춘식 - 모션 완벽 해결</title>
+  <title>콩콩춘식 - 최종 완성본</title>
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -11,7 +11,7 @@
     #game-container{position:relative;width:480px;height:800px;background:linear-gradient(#A1C4FD,#C2E9FB);overflow:hidden}
     #bgCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
 
-    /* 필승 비법: 독립 캔버스 + 투명도 스위칭 */
+    /* 필승 비법: 독립 캔버스 + 투명도 스위칭 (깜빡임 제로) */
     .chun-layer {
       position: absolute;
       width: 86px !important;
@@ -47,9 +47,10 @@
   const btnStart = document.getElementById('btnStart'), status = document.getElementById('status');
   bgCanvas.width = 480; bgCanvas.height = 800;
 
-  let landRive, airRive;
+  let landRive = null, airRive = null;
   let landReady = false, airReady = false;
 
+  // 1. 초기화 (잘림 방지 및 로딩 체크)
   function init() {
     landRive = new rive.Rive({
       src: 'kongsik_ingame_land.riv',
@@ -72,13 +73,14 @@
   function checkReady() { if(landReady && airReady) { status.innerText = "준비 완료! 🐯"; btnStart.classList.remove('hidden'); } }
   init();
 
-  // --- 물리 설정: 점프 높이 대폭 상향 (-20 -> -25) ---
-  let jumpPower = -25;    
-  let gravity = 1.3;      // 중력도 살짝 높여 템포 유지
+  // 2. 쾌속 물리 및 시간 설정
+  let jumpPower = -20;    // 점프 높이
+  let gravity = 1.2;      // 속도감 상향 (빨리 떨어짐)
   let p = { x: 197, y: 600, vy: 0 }, isRunning = false, lastDir = 1;
   let isSpringing = false, landLockTimer = 0;
-  const MIN_LAND_TIME = 100; 
+  const MIN_LAND_TIME = 100; // 랜드 모션 유지 시간 (단축)
 
+  // 시선 조작: 왼쪽(-1), 오른쪽(1)
   window.addEventListener('keydown', e => { 
     if(e.code==='ArrowLeft'){ lastDir = -1; } 
     if(e.code==='ArrowRight'){ lastDir = 1; } 
@@ -90,17 +92,19 @@
     const dt = timestamp - lastTimestamp;
     lastTimestamp = timestamp;
 
+    // 탄력 물리 로직
     if (isSpringing) {
-      p.vy *= 0.2; 
+      p.vy *= 0.2; // 쾌속 감속
       if (Math.abs(p.vy) < 1.0) { p.vy = jumpPower; isSpringing = false; }
     } else {
       p.vy += gravity;
     }
     p.y += p.vy;
 
-    // 바닥 충돌 (LAND)
+    // 착지 시 (Land 모션 리셋 재생)
     if (p.y > 600 && !isSpringing && p.vy > 0) {
       p.y = 600; isSpringing = true; landLockTimer = MIN_LAND_TIME;
+      
       if (!landCanvas.classList.contains('active-chun')) {
         setLayer(landCanvas); 
         landRive.scrub("State Machine 1", 0);
@@ -108,20 +112,19 @@
       }
     } 
 
-    // 공중 상승 (AIR 모션 강제 깨우기)
+    // 공중 상승 시 (Air 모션 멈춤 해결)
     if (landLockTimer > 0) {
       landLockTimer -= dt;
     } 
     else if (p.vy < 0) {
       if (!airCanvas.classList.contains('active-chun')) {
         setLayer(airCanvas);
-        // [핵심] 일시정지 후 재생하여 엔진 상태 강제 갱신
-        airRive.pause("State Machine 1");
-        airRive.scrub("State Machine 1", 0);
+        airRive.scrub("State Machine 1", 0); // 전환 시 딱 한 번만 리셋
         airRive.play("State Machine 1");
       }
     }
 
+    // 좌표 및 시선 업데이트 (86x138 피벗)
     [landCanvas, airCanvas].forEach(c => {
       c.style.left = (p.x - 43) + 'px';
       c.style.top = (p.y - 69) + 'px';
