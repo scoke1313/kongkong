@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 초반 안심 케어 패치</title>
+    <title>콩콩춘식 - 슈퍼 점프 강화 패치</title>
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
         body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
@@ -15,9 +15,13 @@
             position: absolute; width: 86px !important; height: 138px !important;
             bottom: 100px; left: 50%; margin-left: -43px; z-index: 10;
         }
+        /* 황금 슈퍼 점프 글로우 효과 */
+        .gold-glow { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)) brightness(1.3); }
         canvas { width: 100%; height: 100%; }
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
+        .game-item { position: absolute; width: 40px; height: 40px; background-size: contain; background-repeat: no-repeat; z-index: 7; }
+        .pickup-effect { position: absolute; font-weight: bold; color: #4CAF50; font-size: 20px; z-index: 20; pointer-events: none; transition: transform 0.8s, opacity 0.8s; }
         .particle { position: absolute; z-index: 4; pointer-events: none; border-radius: 1px; }
         .controller {
             position: absolute; width: 80px; height: 80px; background-size: contain;
@@ -28,28 +32,34 @@
         .ctrl-default { background-image: url('controller_Default.png'); }
         .ctrl-pressed { background-image: url('controller_pressed.png'); }
         #score-board { position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold; color: #5c3e34; z-index: 100; }
+        #rate-board { position: absolute; top: 20px; right: 20px; font-size: 22px; font-weight: bold; color: #2E7D32; z-index: 100; }
     </style>
 </head>
 <body>
 
 <div id="game-stage">
     <div id="score-board">0m</div>
+    <div id="rate-board">Rate: +0.00%</div>
     <div id="canvas-container"><canvas id="canvas"></canvas></div>
     <div id="btn-left" class="controller ctrl-default"></div>
     <div id="btn-right" class="controller ctrl-default"></div>
 </div>
 
 <script>
-const PHYSICS = { gravity: 0.81, jumpPower: -18.9, moveSpeed: 7, motionHold: 10 };
+const PHYSICS = { gravity: 0.81, jumpPower: -18.9, superJumpPower: -45, moveSpeed: 7, motionHold: 10 };
 const PLATFORM_TYPES = { wood: ['wood_1.png', 'wood_2.png', 'wood_3.png'], block: ['block_1.png', 'block_2.png', 'block_3.png'] };
 const SIZES = [138, 98, 58]; 
 
-let currentY = 0, velocityY = 0, posX = 0, score = 0, bgScrollY = 0;
+let currentY = 0, velocityY = 0, posX = 0, score = 0, cloverRate = 0, bgScrollY = 0;
+let isSuperJumping = false; // 슈퍼 점프 중인지 여부
+let superJumpEndDist = 0; // 슈퍼 점프가 끝날 목표 거리
 let riveInstance, keys = {}, currentScale = 1;
 let platforms = [], particles = [], motionTimer = 0, lastLoadedFile = "";
 let startTime = Date.now(), mouseAnimFrame = 0;
 
-const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), scoreEl = document.getElementById('score-board');
+const btnLeft = document.getElementById('btn-left'), btnRight = document.getElementById('btn-right'), 
+      scoreEl = document.getElementById('score-board'), rateEl = document.getElementById('rate-board'),
+      canvasCont = document.getElementById('canvas-container');
 
 const setInput = (key, isDown, btn) => { 
     keys[key] = isDown; 
@@ -81,20 +91,18 @@ function loadRive(fileName) {
 function createPlatformData(yPos) {
     let distM = Math.floor(score * 0.01);
     const rand = Math.random();
-
-    // ★ 30m 이전에는 가장 긴 발판(SIZES[0]=138px)만 나오게 설정
     let sizeIdx = distM < 30 ? 0 : Math.floor(rand * SIZES.length);
     const width = SIZES[sizeIdx];
-    
-    // 나무 발판 비율 로직 (0m: 20% -> 500m: 90%)
     let woodProb = 0.2 + (Math.min(distM, 500) / 500) * 0.7;
     let isBreakable = rand < woodProb;
     const typeKey = isBreakable ? 'wood' : 'block';
-
-    // 쥐돌이 출현 조건
     let canHaveMouse = (width === 138) && (rand < 0.2); 
 
-    // 이동 발판 로직 (100m부터 상하 이동 등장)
+    let itemType = null;
+    if (!canHaveMouse && rand > 0.85) {
+        itemType = Math.random() > 0.6 ? 'gold' : 'clover';
+    }
+
     let moveProb = distM < 100 ? 0.05 : Math.min(0.4, 0.05 + (0.35 * ((distM - 100) / 400)));
     let moveType = 'normal';
     if (rand < moveProb) {
@@ -110,6 +118,7 @@ function createPlatformData(yPos) {
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: Math.random() > 0.5 ? 1 : -1,
         mouseSpeed: 0.7 + Math.random() * 0.5, 
         mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
+        item: itemType, itemCollected: false,
         type: moveType, speed: 1.5, verticalRange: 40 + Math.random() * 40,
         vPhase: Math.random() * Math.PI * 2,
         isBroken: false, isTouched: false
@@ -127,8 +136,11 @@ function spawnBreakParticles(x, y, width) {
 }
 
 function initPlatforms() {
-    document.querySelectorAll('.platform, .mouse-enemy, .particle').forEach(el => el.remove());
-    score = 0; scoreEl.innerText = "0m"; bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
+    document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item, .pickup-effect').forEach(el => el.remove());
+    score = 0; cloverRate = 0; isSuperJumping = false;
+    scoreEl.innerText = "0m"; rateEl.innerText = "Rate: +0.00%";
+    bgScrollY = 0; currentY = 0; velocityY = 0; posX = 0;
+    canvasCont.classList.remove('gold-glow');
     document.getElementById('game-stage').style.backgroundPositionY = '0px';
     startTime = Date.now(); platforms = []; particles = [];
     let lastY = 752;
@@ -148,11 +160,18 @@ function update() {
     const limit = 393/2 - 43;
     posX = Math.max(-limit, Math.min(limit, posX));
 
-    velocityY += PHYSICS.gravity;
+    // 물리 연산: 슈퍼 점프 중에는 중력 영향 감소
+    velocityY += isSuperJumping ? PHYSICS.gravity * 0.5 : PHYSICS.gravity;
     currentY += velocityY;
     mouseAnimFrame = (mouseAnimFrame + 1) % 20;
 
     const charFootY = 752 + currentY, charLeft = 393/2 + posX - 25;
+
+    // 슈퍼 점프 종료 체크
+    if (isSuperJumping && velocityY >= 0) {
+        isSuperJumping = false;
+        canvasCont.classList.remove('gold-glow');
+    }
 
     platforms.forEach(p => {
         if (!p.isBroken) {
@@ -164,7 +183,31 @@ function update() {
                 p.y = p.baseY + Math.sin(p.vPhase) * p.verticalRange;
             }
 
-            if (p.hasMouse) {
+            // 아이템 충돌
+            if (p.item && !p.itemCollected) {
+                let ix = p.x + p.w/2 - 20, iy = p.y - 45;
+                if (charLeft + 45 > ix && charLeft + 5 < ix + 40 && charFootY > iy && charFootY < iy + 40) {
+                    p.itemCollected = true;
+                    if (p.item === 'clover') {
+                        cloverRate += 0.1;
+                        rateEl.innerText = `Rate: +${cloverRate.toFixed(2)}%`;
+                        let eff = document.createElement('div');
+                        eff.className = 'pickup-effect'; eff.innerText = '+0.1%';
+                        eff.style.left = (ix + 20) + 'px'; eff.style.top = iy + 'px';
+                        document.getElementById('game-stage').appendChild(eff);
+                        setTimeout(() => { eff.style.transform = 'translateY(-50px)'; eff.style.opacity = '0'; }, 10);
+                        setTimeout(() => eff.remove(), 800);
+                    } else if (p.item === 'gold') {
+                        // 즉시 강력한 수직 상승
+                        isSuperJumping = true;
+                        velocityY = PHYSICS.superJumpPower; 
+                        canvasCont.classList.add('gold-glow');
+                        loadRive('kongsik_ingame_air.riv');
+                    }
+                }
+            }
+
+            if (!isSuperJumping && p.hasMouse) {
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
                 else {
                     p.mouseX += p.mouseDir * p.mouseSpeed;
@@ -181,7 +224,7 @@ function update() {
                 }
             }
 
-            if (velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
+            if (!isSuperJumping && velocityY > 0 && charLeft + 45 > p.x && charLeft + 5 < p.x + p.w && charFootY >= p.y && charFootY <= p.y + 15) {
                 loadRive('kongsik_ingame_land.riv'); 
                 velocityY = PHYSICS.jumpPower; currentY = p.y - 752; 
                 motionTimer = PHYSICS.motionHold; 
@@ -216,12 +259,12 @@ function update() {
         particles.forEach(part => part.y += diff);
     }
 
-    if (charFootY > 950) initPlatforms();
+    if (charFootY > 1050) initPlatforms(); // 슈퍼 점프 고려하여 여유 공간 확보
 
     document.getElementById('canvas-container').style.transform = `translate(${Math.floor(posX)}px, ${Math.floor(currentY)}px) scaleX(${currentScale})`;
     
     const stage = document.getElementById('game-stage');
-    document.querySelectorAll('.platform, .mouse-enemy, .particle').forEach(el => el.remove());
+    document.querySelectorAll('.platform, .mouse-enemy, .particle, .game-item').forEach(el => el.remove());
     
     particles.forEach(part => {
         const pdiv = document.createElement('div');
@@ -237,6 +280,15 @@ function update() {
             let opacity = (p.isBreakable && p.isTouched) ? 0.6 : 1.0;
             d.style.cssText = `left:${p.x}px;top:${p.y}px;width:${p.w}px;height:22px;background-image:url('${p.img}'); opacity:${opacity};`;
             stage.appendChild(d);
+
+            if (p.item && !p.itemCollected) {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'game-item';
+                itemDiv.style.backgroundImage = `url('item_${p.item}.png')`;
+                itemDiv.style.left = (p.x + p.w/2 - 20) + 'px';
+                itemDiv.style.top = (p.y - 45) + 'px';
+                stage.appendChild(itemDiv);
+            }
         }
         if (p.hasMouse) {
             const m = document.createElement('div');
