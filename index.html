@@ -8,10 +8,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
     <style>
-        body { margin: 0; background: #FFFFFF; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        /* [수정] background를 #333에서 #FFF(하얀색)로 변경 */
+        body { margin: 0; background: #FFF; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
         #game-stage { 
             position: relative; width: 393px; height: 852px; 
             background-color: #FFFDF5; background-size: 100% auto; background-repeat: repeat-y; overflow: hidden; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.05); /* 여백이 하얀색이라 경계선이 안 보일 수 있어서 미세한 그림자를 추가했어 */
         }
 
         /* --- 화면 레이어 --- */
@@ -273,7 +275,6 @@ function update() {
                     posX += (posX > (mx - p.x) ? 100 : -100); 
                     
                     p.mouseHit = true;
-                    // 속도 15 (총 15프레임 지속, 5프레임씩 교체)
                     p.mouseHitTimer = 15; 
                     p.mouseStunTimer = 60; 
                 }
@@ -335,7 +336,6 @@ function update() {
         }
         
         if (p.hasMouse) {
-            // 3단계 프레임 모션 애니메이션 로직 (속도 15 최적화)
             if (p.mouseHit && p.mouseHitTimer > 0) {
                 const eff = document.createElement('div');
                 eff.className = 'damage-effect';
