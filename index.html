@@ -107,7 +107,7 @@
         <div id="btn-close-wrap" onclick="location.reload();"><img src="close.png" alt="close"></div>
         <div class="header-ui-container">
             <div id="score-board">0m</div>
-            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0개</span></div>
+            <div class="rate-capsule"><img src="clover_s.png" style="width:25px; margin-right:6px;" alt="clover"><span id="rate-board">0</span></div>
         </div>
     </div>
     
@@ -209,7 +209,7 @@ function createPlatformData(yPos) {
 function initPlatforms() {
     score = 0; cloverCount = 0; currentY = 0; velocityY = 0; posX = 0; woodParticles = []; bgScrollY = 0; maxReachY = 0;
     document.getElementById('score-board').innerText = "0m";
-    document.getElementById('rate-board').innerText = "0개";
+    document.getElementById('rate-board').innerText = "0";
     platforms = [];
     let lastY = 752;
     for (let i = 0; i < 7; i++) { lastY -= (120 + Math.random() * 80); platforms.push(createPlatformData(lastY)); }
@@ -276,7 +276,7 @@ function update() {
                     p.itemCollected = true;
                     if (p.item === 'clover') {
                         cloverCount++;
-                        document.getElementById('rate-board').innerText = `${cloverCount}개`; 
+                        document.getElementById('rate-board').innerText = `${cloverCount}`; 
                         spawnPickupEffect(ix + 25, iy);
                     } else if (p.item === 'gold') { 
                         isSuperJumping = true; velocityY = PHYSICS.superJumpPower; 
