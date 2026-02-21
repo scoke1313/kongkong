@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>콩콩춘식 - 쥐돌이 이펙트 애니메이션</title>
+    <title>콩콩춘식 - 쥐돌이 이펙트 모션 업데이트</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poetsen+One&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
             background-color: #FFFDF5; background-size: 100% auto; background-repeat: repeat-y; overflow: hidden; 
         }
 
-        /* --- 메인 화면 --- */
+        /* --- 화면 레이어 --- */
         #main-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: url('bg_main.png'); background-size: 100% 100%; z-index: 2000; }
         #main-rive-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         #main-canvas { width: 100%; height: 100%; }
@@ -24,7 +24,6 @@
             background-repeat: no-repeat; background-position: center; cursor: pointer; border: none; background-color: transparent; z-index: 2001;
         }
 
-        /* --- 결과 화면 --- */
         #result-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.6); z-index: 3000; display: none;
@@ -40,11 +39,6 @@
         .res-badge { display: inline-block; padding: 6px 16px; background: #FEE500; border-radius: 20px; font-weight: 800; color: #2D1D1C; font-size: 14px; margin-bottom: 12px; }
         .res-title { font-size: 24px; font-weight: 800; color: #2D1D1C; margin: 0; line-height: 1.2; word-break: keep-all; }
         .res-divider { width: 100%; height: 1px; background: #F0E0C6; margin: 24px 0; }
-        .res-stats-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
-        .res-stats-label { color: #888; font-size: 15px; font-weight: 500; }
-        .res-stats-value { color: #2D1D1C; font-size: 16px; font-weight: 700; }
-        .res-total-box { margin-top: 30px; background: #F9F9F9; border-radius: 24px; padding: 20px; }
-        .res-total-label { font-size: 14px; color: #555; font-weight: 600; margin-bottom: 4px; }
         .res-total-value { font-size: 44px; font-weight: 900; color: #FA435B; font-family: 'Arial', sans-serif; letter-spacing: -1px; }
         #btn-retry { margin-top: 24px; width: 100%; height: 64px; background: #2D1D1C; color: #FFF; border: none; border-radius: 20px; font-size: 18px; font-weight: 800; cursor: pointer; }
 
@@ -63,7 +57,7 @@
         .platform { position: absolute; background-size: 100% 100%; z-index: 5; transition: opacity 0.2s; }
         .mouse-enemy { position: absolute; width: 72px; height: 54px; background-size: contain; background-repeat: no-repeat; z-index: 6; }
         
-        /* [NEW] 애니메이션 데미지 이펙트 스타일 */
+        /* 애니메이션 데미지 이펙트 스타일 (절반 사이즈 적용) */
         .damage-effect { 
             position: absolute; width: 60px; height: 60px; 
             background-size: contain; background-repeat: no-repeat; 
@@ -95,16 +89,7 @@
             <div class="res-badge">CHALLENGE DONE</div>
             <div class="res-title">금리 점프 챌린지 결과</div>
             <div class="res-divider"></div>
-            <div class="res-stats-row">
-                <span class="res-stats-label">거리 보너스 (1m=0.01%)</span>
-                <span class="res-stats-value" id="res-dist-val">+0.00%</span>
-            </div>
-            <div class="res-stats-row">
-                <span class="res-stats-label">클로버 보너스 (1개=0.1%)</span>
-                <span class="res-stats-value" id="res-clover-val">+0.00%</span>
-            </div>
             <div class="res-total-box">
-                <div class="res-total-label">최종 합산 보너스 금리</div>
                 <div class="res-total-value" id="res-total">0.00%</div>
             </div>
             <button id="btn-retry" onclick="location.reload();">다시 도전하기</button>
@@ -154,12 +139,7 @@ function startGame() {
 
 function showResult() {
     isPlaying = false; isGameOver = true;
-    const distM = Math.floor(score * 0.01);
-    const distRate = distM * 0.01;
-    const cloverRate = cloverCount * 0.1;
-    const total = distRate + cloverRate;
-    document.getElementById('res-dist-val').innerText = `+${distRate.toFixed(2)}% (${distM}m)`;
-    document.getElementById('res-clover-val').innerText = `+${cloverRate.toFixed(2)}% (${cloverCount}개)`;
+    const total = (score * 0.0001) + (cloverCount * 0.1);
     document.getElementById('res-total').innerText = `${total.toFixed(2)}%`;
     const screen = document.getElementById('result-screen');
     screen.style.display = 'flex';
@@ -264,7 +244,6 @@ function update() {
     platforms.forEach(p => {
         if (p.hasMouse) {
             if (p.mouseHitTimer > 0) p.mouseHitTimer--; 
-            
             if (p.mouseStunTimer > 0) {
                 p.mouseStunTimer--;
                 if (p.mouseStunTimer <= 0) p.mouseHit = false; 
@@ -280,15 +259,13 @@ function update() {
                 }
                 let mx = p.x + p.mouseX, my = p.y - 35;
                 
-                if (!isSuperJumping && velocityY > 0 && 
-                    charLeft + 35 > mx + 28 && charLeft + 15 < mx + 44 && 
-                    charFootY > my + 10 && charFootY < my + 35) { 
-                    
+                if (!isSuperJumping && velocityY > 0 && charLeft + 35 > mx + 28 && charLeft + 15 < mx + 44 && charFootY > my + 10 && charFootY < my + 35) { 
                     velocityY = -15; 
                     posX += (posX > (mx - p.x) ? 100 : -100); 
                     
                     p.mouseHit = true;
-                    p.mouseHitTimer = 30; // 3프레임 애니메이션용 시간
+                    // [NEW] 속도 10 -> 15 업그레이드 (총 15프레임 지속, 5프레임당 이미지 교체)
+                    p.mouseHitTimer = 15; 
                     p.mouseStunTimer = 60; 
                 }
             } else { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
@@ -340,7 +317,6 @@ function update() {
     
     const stage = document.getElementById('game-stage');
     document.querySelectorAll('.platform, .mouse-enemy, .game-item, .wood-chunk, .damage-effect').forEach(el => el.remove());
-    
     woodParticles.forEach(p => { const chunk = document.createElement('div'); chunk.className = 'wood-chunk'; chunk.style.cssText = `left:${p.x}px; top:${p.y}px; width:${p.size}px; height:${p.size}px; opacity:${p.life};`; stage.appendChild(chunk); });
     
     platforms.forEach(p => {
@@ -350,16 +326,15 @@ function update() {
         }
         
         if (p.hasMouse) {
-            // [NEW] 애니메이션 이펙트 로직
+            // [NEW] 3단계 프레임 모션 애니메이션 로직 (속도 15 최적화)
             if (p.mouseHit && p.mouseHitTimer > 0) {
                 const eff = document.createElement('div');
                 eff.className = 'damage-effect';
                 
-                // 프레임 결정
                 let effImg;
-                if (p.mouseHitTimer > 20) effImg = 'effect_damage1.png';
-                else if (p.mouseHitTimer > 10) effImg = 'effect_damage2.png';
-                else effImg = 'effect_damage3.png';
+                if (p.mouseHitTimer > 10) effImg = 'effect_damage1.png'; // 처음 5프레임
+                else if (p.mouseHitTimer > 5) effImg = 'effect_damage2.png'; // 중간 5프레임
+                else effImg = 'effect_damage3.png'; // 마지막 5프레임
 
                 eff.style.left = (p.x + p.mouseX + 6) + 'px'; 
                 eff.style.top = (p.y + p.mouseYOffset - 10) + 'px'; 
@@ -369,16 +344,7 @@ function update() {
 
             const m = document.createElement('div'); 
             m.className = 'mouse-enemy'; 
-            
-            let mouseImg;
-            if (p.mouseHit) {
-                mouseImg = 'mouse3.png'; 
-            } else if (p.mouseWaitTimer > 0 || p.isBroken) {
-                mouseImg = 'mouse2.png';
-            } else {
-                mouseImg = `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`;
-            }
-
+            let mouseImg = p.mouseHit ? 'mouse3.png' : (p.mouseWaitTimer > 0 || p.isBroken ? 'mouse2.png' : `mouse_walk${mouseAnimFrame < 10 ? 1 : 2}.png`);
             m.style.cssText = `left:${p.x + p.mouseX}px; top:${p.y + p.mouseYOffset}px; background-image:url('${mouseImg}'); transform:scaleX(${p.mouseDir});`; 
             stage.appendChild(m); 
         }
