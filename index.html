@@ -215,7 +215,7 @@ function createPlatformData(yPos) {
         img: PLATFORM_TYPES[isBreakable?'wood':'block'][sizeIdx], 
         isBreakable, 
         hasMouse: canHaveMouse, mouseX: Math.random() * (width - 72), mouseDir: 1, mouseSpeed: 0.7 + Math.random() * 0.6, mouseWaitTimer: 0, mouseYOffset: -52, mouseVY: 0,
-        mouseHit: false, mouseHitTimer: 0, mouseStunTimer: 0, // [NEW] 스턴 타이머 추가
+        mouseHit: false, mouseHitTimer: 0, mouseStunTimer: 0, 
         item: itemType, itemCollected: false, type: moveType, speed: 1.6, verticalRange: 40 + Math.random() * 40, vPhase: Math.random() * Math.PI * 2, isBroken: false 
     };
 }
@@ -265,16 +265,14 @@ function update() {
         if (p.hasMouse) {
             if (p.mouseHitTimer > 0) p.mouseHitTimer--; 
             
-            // [NEW] 스턴 타이머 관리 및 복구 로직
             if (p.mouseStunTimer > 0) {
                 p.mouseStunTimer--;
-                if (p.mouseStunTimer <= 0) p.mouseHit = false; // 1초 뒤 다시 활동 시작
+                if (p.mouseStunTimer <= 0) p.mouseHit = false; 
             }
 
             if (!p.isBroken) {
                 if (p.mouseWaitTimer > 0) p.mouseWaitTimer--;
                 else { 
-                    // 맞지 않았을 때(또는 스턴이 풀렸을 때)만 이동
                     if(!p.mouseHit) {
                         p.mouseX += p.mouseDir * p.mouseSpeed; 
                         if (p.mouseX <= 0 || p.mouseX + 72 >= p.w) { p.mouseDir *= -1; p.mouseWaitTimer = 30; } 
@@ -289,10 +287,9 @@ function update() {
                     velocityY = -15; 
                     posX += (posX > (mx - p.x) ? 100 : -100); 
                     
-                    // 충돌 상태 및 타이머 설정
                     p.mouseHit = true;
-                    p.mouseHitTimer = 30; // 데미지 이펙트 지속
-                    p.mouseStunTimer = 60; // 1초간 정지 (60fps 기준)
+                    p.mouseHitTimer = 30; 
+                    p.mouseStunTimer = 60; 
                 }
             } else { p.mouseVY += 0.6; p.mouseYOffset += p.mouseVY; }
         }
@@ -366,7 +363,7 @@ function update() {
             
             let mouseImg;
             if (p.mouseHit) {
-                mouseImg = 'mouse3.png'; // 충돌/스턴 상태일 때
+                mouseImg = 'mouse3.png'; 
             } else if (p.mouseWaitTimer > 0 || p.isBroken) {
                 mouseImg = 'mouse2.png';
             } else {
