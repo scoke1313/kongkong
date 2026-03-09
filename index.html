@@ -738,9 +738,9 @@ function showFinalEventPage() {
         onLoad: () => {
             resultRive.resizeDrawingSurfaceToCanvas();
             
-            // ★ 3. 로드 완료 후 0.6초 대기하고 애니메이션 시퀀스 시작
+            // ★ 3. 로드 완료 후 0.5초 대기하고 애니메이션 시퀀스 시작
             setTimeout(() => {
-                // 0.6초 대기 끝! 리브 모션 재생 시작
+                // 0.5초 대기 끝! 리브 모션 재생 시작
                 resultRive.play('State Machine 1');
 
                 // [1단계] 위에서부터 느리게 착지 (0.5초 ease-in)
@@ -762,7 +762,7 @@ function showFinalEventPage() {
                     }, 1000);
                     
                 }, 500); // 1단계 착지 시간(500ms)과 동일하게 맞춤 (기다림 없이 튀어오름)
-            }, 600); // ★ 결과창 진입 후 0.6초 대기
+            }, 500); // ★ 결과창 진입 후 0.5초 대기
         }
     });
 }
